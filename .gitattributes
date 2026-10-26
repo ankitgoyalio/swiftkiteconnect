@@ -1,0 +1,15 @@
+# Tool-managed lockfiles are not authored source.
+Package.resolved linguist-generated=true
+skills-lock.json linguist-generated=true
+*.lock linguist-generated=true
+package-lock.json linguist-generated=true
+npm-shrinkwrap.json linguist-generated=true
+pnpm-lock.yaml linguist-generated=true
+
+# Generated output and third-party source. Add precise patterns for new tools.
+**/Generated/** linguist-generated=true
+**/generated/** linguist-generated=true
+*.generated.* linguist-generated=true
+*.g.swift linguist-generated=true
+Vendor/** linguist-vendored=true
+vendor/** linguist-vendored=true

@@ -1,5 +1,10 @@
 ## Agent skills
 
+### Development
+
+Before configuring hooks, committing changes, or changing hook behavior,
+read the [development guide](docs/development.md).
+
 ### Issue tracker
 
 Track issues and specs in GitHub Issues for
