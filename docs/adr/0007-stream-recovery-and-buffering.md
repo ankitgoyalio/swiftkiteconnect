@@ -1,0 +1,5 @@
+# Recover streaming connections without hiding data loss
+
+After transient WebSocket failures, the SDK will reconnect using configurable, bounded exponential backoff and restore subscriptions and modes. It will notify callers of a possible data gap rather than imply replay; authentication failures stop reconnection until the caller supplies fresh credentials. Applications own reconciliation of missed order updates.
+
+Market-data and order-update streams will use separate bounded buffers so quote traffic cannot consume the order-update buffer. Each subscriber receives its own copy of subscribed events and has its own bounded buffer; consumers do not compete for events from a shared iterator. Buffer overflow explicitly fails the affected subscriber, avoiding silent event loss and unbounded memory growth; the caller must resubscribe or reconnect and reconcile as appropriate. Other subscribers remain running, and cancelling one subscriber does not implicitly disconnect the ticker. An optional latest-quote-per-instrument policy is deferred.
