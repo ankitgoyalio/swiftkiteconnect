@@ -1,63 +1,59 @@
 # swiftkiteconnect
 
-An unofficial Swift SDK for Kite Connect v3. **Partial 0.x implementation; not a
-complete SDK or a qualified 1.0 release.** Currently provides typed user profile
-retrieval and reusable HTTP contracts. Requires Swift 6.4, iOS 18+, macOS 15+;
-Ubuntu 24.04 checks are configured, with execution evidence still pending.
+An unofficial Swift SDK for Kite Connect v3. **Partial 0.x; not a qualified 1.0
+release.** The package implements the selected 2026-10-27 snapshot's 42 REST
+method/route contracts, typed streaming, postback validation and Publisher guidance.
+Linux transport qualification and authenticated sandbox evidence remain incomplete.
 
-Add this repository as a Swift package dependency and select the `KiteConnect`
-product. The module name is `KiteConnect`:
+Requires Swift 6.4, iOS 18+ or macOS 15+. Ubuntu 24.04 is the intended Linux target;
+its CI job is configured but has not run. The explicit SwiftNIO/WebSocketKit adapter
+remains provisional until real Linux transport checks pass.
+
+Add this repository as a SwiftPM dependency and select the `KiteConnect` product.
+The module is `KiteConnect`. A minimal sandbox read with an app-provided token:
 
 ```swift
 import KiteConnect
 
-// Supply an access token from your application's authentication flow.
-let client = try KiteClient(
-    apiKey: "sandboxdemo",
-    accessToken: accessToken,
-    configuration: .sandbox
-)
-let profile = try await client.profile()
-print(profile.userID, profile.userName)
+func readProfile(accessToken: String) async throws -> KiteUserProfile {
+  let client = try KiteClient(
+    apiKey: "sandboxdemo", accessToken: accessToken, configuration: .sandbox)
+  return try await client.profile()
+}
 ```
 
-Use a separate client for each API key/user session. Applications own login UI,
-redirect handling, credential storage, and secret-bearing backend token exchange.
-Token exchange and invalidation endpoint wrappers arrive in ticket #5.
+`KiteClient` provides authentication/session operations, account margins,
+instruments/quotes/history, order reads and mutations, GTT, simple/ATO alerts,
+portfolio/authorisation, hypothetical margin/charge calculations and the five
+snapshot mutual-fund reads. `KiteTicker` provides every documented binary layout,
+text order/broker events, bounded independent subscribers and bounded recovery
+with gap notifications. `KitePostbacks` decodes and validates incoming raw bodies.
 
-`KiteConfiguration.sandbox` uses `https://sandbox.kite.trade/oms` for API routes.
-Instrument dump requests explicitly bypass `/oms`. The default configuration
-uses the production API; all remote verification for this project uses sandbox
-only. No credentials are needed for the routine suite.
+Use a separate client per API key/user session. REST calls attempt once; no queue,
+automatic retries or trading resubmission is included. A receipt is not a fill.
+Reconcile uncertain mutations and missed stream updates before taking another
+action. Applications own browser presentation, redirect handling, secret-bearing
+backend token exchange, credentials, instrument persistence and reconciliation.
+Defaults point to production; all project remote verification is sandbox-only.
 
-REST calls make one transport attempt, with no queue or automatic retry.
-`KiteConfiguration(timeout:)` controls the request/resource deadline.
-`replaceAccessToken(_:)` changes credentials for subsequent requests, and nil
-clears them locally. Already dispatched requests may finish using their original
-credentials. Await replacement before launching work that must use the new token.
-Cancellation remains `CancellationError`. A cancellation after dispatch can still
-leave a trading action accepted; applications must reconcile before resubmission.
-
-Catch `KiteError.validation`, `.transport`, `.api`, `.decoding`, or
-`.uncertainOutcome`. API errors preserve available HTTP status, server error type,
-message and response headers, including rate-limit responses. Unknown server enum
-values remain `.unknown(originalString)`.
-
-`KiteSessionCredentials` also supports `KiteClient(session:configuration:transport:)`
-when an application already holds the authenticated key/token pair.
-
-For endpoint implementers, `execute(_:as:)` decodes Kite success envelopes and
-`response(for:)` returns validated raw bytes. `KiteRequest` supports repeated
-query parameters, form bodies, and JSON bodies. Trading mutations must set
-`isTradingMutation: true`; failed transport, invalid success data, and responses
-without confirmed Kite rejection then surface uncertain outcomes. A successful
-submission is not evidence of execution. The injected `KiteHTTPTransport` contract
-is the public testing boundary; custom transports must honor cancellation,
-timeouts and one-attempt behavior. The default adapter refuses redirects.
-
-Run `swift test` for protocol and real loopback HTTP tests. On Apple platforms,
-select full Xcode if the active Command Line Tools installation cannot discover
-Swift Testing. Run `bash Scripts/test-ios.sh` with an installed iOS Simulator.
-See [verification evidence](Documentation/Verification.md), the
-[release snapshot and coverage checklist](Documentation/Coverage.md), and
+Start with the [compiled usage guide](Documentation/Usage.md) for authentication,
+REST, reconciliation, portfolio exits, streaming and postbacks. See the
+[endpoint and prose audit](Documentation/Coverage.md),
+[executed vs configured verification](Documentation/Verification.md), and
 [Publisher browser guidance](Documentation/Publisher.md).
+
+Routine checks require no account or remote API access:
+
+```fish
+swift test
+python3 Scripts/audit-snapshot.py
+python3 Scripts/check-documentation-examples.py
+node --test Documentation/Publisher.test.cjs
+```
+
+On this macOS host select full Xcode with
+`env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test`.
+Run iOS with `env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/test-ios.sh`.
+[Verification](Documentation/Verification.md) provides the Ubuntu path and explicit
+remaining blockers [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27)
+and [#29](https://github.com/ankitgoyalio/swiftkiteconnect/issues/29).
