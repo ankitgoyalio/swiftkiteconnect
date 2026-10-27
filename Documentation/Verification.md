@@ -1,18 +1,30 @@
 # Verification — partial 0.x
 
-Updated 2026-10-27 after the [final review fixes](Review.md) for ticket #24 on macOS arm64, Apple Swift 6.4
-(`swiftlang-6.4.0.34.1`), Xcode 27.1 (`27A9275`). This record supersedes the old
-foundation-only verification page; historical slice evidence remains in
-`Documentation/Evidence/ticket-4-*` through `ticket-23-*` where present.
-**The complete #24 acceptance matrix is not achieved: successful trusted TLS/WSS
-and authenticated sandbox checks remain open.**
+Updated 2026-10-27. This is a **partial 0.x**, not a qualified 1.0 release.
+Authenticated broker, browser and delivered-postback scenarios remain unverified
+under [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27). Sandbox
+login/homepage requests returned 504 while the user observed 502; that is an
+availability blocker, not proof that the service has not launched. No production
+fallback is authorized.
 
-Hosted Ubuntu 24.04 with Swift 6.4 passed on published head `d1e3fe6`: 275 tests
-passed, one optional smoke skipped, including real local HTTP/WebSocket and TLS
-rejection. [Hosted evidence](Evidence/hosted-ubuntu.txt) records the exact job.
-The Apple job failed before tests because its image lacked Swift 6.4; CI now
-installs that toolchain explicitly and selects it for Xcode simulator builds.
-No 1.0 completeness, production qualification or remote trading success is claimed.
+Current local source (trusted TLS/fallback qualification changes) passes 276 tests
+on each of macOS and iOS Simulator, with two opt-in sandbox tests skipped per target. Trusted local WSS now verifies a CA-signed DNS leaf, transmits LTP
+through the public ticker, rejects a hostname mismatch and untrusted/malformed
+roots, and accepts correctly certified IPv4 and IPv6 literal addresses. No OS trust-store changes or
+certificate-verification bypasses are used. This also exercises the HTTPS upgrade
+inside WSS; it does not establish a new local HTTPS-profile pass for the default
+URLSession adapter. Its successful public sandbox HTTPS CSV read is listed below.
+
+The new cases found and fixed two adapter bugs: failed IPv6 candidates prematurely
+aborted IPv4 fallback, and literal IP addresses were incorrectly supplied as SNI.
+[Partial 0.x qualification](Partial-0x.md) records evidence and remaining scope.
+The new transport source awaits hosted macOS/iOS/Ubuntu confirmation.
+Both hosted jobs passed on `ab9bc34` ([run 40493488881](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/40493488881));
+that prior platform pass does not qualify later transport changes. CI now uses
+native Xcode 27.1 and pins iOS 27.0 / iPhone 17 after the image's iOS 27.1 simulator
+failed before test startup. Workflow permission blocker #29 is resolved.
+
+The historical review table below retains its original source-specific counts.
 
 | Check | Executed result / boundary | Durable evidence |
 | --- | --- | --- |
@@ -21,7 +33,7 @@ No 1.0 completeness, production qualification or remote trading success is claim
 | Real local HTTP | Passed as part of both suites: actual URLSession TCP requests, headers/path, redirect refusal, timeout, cancellation | `LocalHTTPTests.swift`, full suite above |
 | Real local WebSocket | Passed as part of both suites: actual HTTP upgrade, masked writes, binary/text, fragment reassembly, peer close, 403 rejection, cancellation, timeout, bounded ingress overflow | `LocalWebSocketTests.swift`, full suite above |
 | Local TLS | Passed on both Apple targets: real self-signed TLS peer rejected by default HTTP and WebSocket transports | `LocalTLSTests.swift`; fixture key is public test material only |
-| Trusted local TLS / successful WSS | **Not executed**: no isolated trusted local CA setup; no trust bypass added; sandbox authenticated WSS also absent. Public sandbox HTTPS succeeded in the opt-in CSV test below | Visible transport qualification residual |
+| Trusted local TLS / successful WSS | Passed on current macOS/iOS source with per-transport explicit roots; hostname/untrusted/malformed rejection and literal-IP success; hosted matrix pending | `TrustedWebSocketTests.swift`; [qualification](Partial-0x.md) |
 | Combined streaming/recovery/session/subscriber behavior | Passed: all 8/28/32/44/184-byte layouts, text events after recovery, bounded backoff, credential fences, desired-state restore and isolated overflow/cancellation | `TickerRecoveryTests.swift`, `TickerTextTests.swift` |
 | REST/WebSocket/postback consistency | Passed in Asia/Kolkata and UTC: unknown status, exact Decimal, matching order state/timestamps, replacement REST credential | `CrossChannelIntegrationTests.swift` |
 | Public Swift examples | All nine README/Usage Swift blocks compile in the full suite; drift check passed | [compiled source](../Tests/KiteConnectTests/DocumentationExamples.swift), [checks](Evidence/review-checks.txt) |
@@ -30,11 +42,11 @@ No 1.0 completeness, production qualification or remote trading success is claim
 | Public sandbox equity instrument smoke | Separately executed opt-in test passed: 10,093 NSE records via default HTTP; no authenticated session | [sandbox log](Evidence/ticket-24-sandbox.txt) |
 | Authenticated sandbox | **Not executed**: no user credentials/access token; remote endpoint, streaming and browser cases remain #27 | Residual list below |
 | Ubuntu 24.04 | **Passed in hosted CI** on `d1e3fe6`: Swift 6.4, 275 tests passed, one skipped; real local HTTP/WebSocket and TLS rejection | [hosted evidence](Evidence/hosted-ubuntu.txt) |
-| GitHub Actions | Published after #29 authorization; Ubuntu passed. Apple failed at compiler selection; updated toolchain installation awaits rerun | [workflow](../.github/workflows/protocol-tests.yml) |
+| GitHub Actions | Both jobs passed on `ab9bc34`; new transport source awaits hosted confirmation | [workflow](../.github/workflows/protocol-tests.yml) |
 | Strict Swift formatting / patch checks | Passed for changed Swift files and `git diff --check` | [checks](Evidence/review-checks.txt) |
 | Production API / live trades | No requests made | Sandbox-only verification policy |
 
-The Swift Testing terminal summary counts the skipped declaration in “276 tests.”
+The historical Swift Testing terminal summary counts the skipped declaration in “276 tests.”
 The iOS result summary separates 275 passed + 1 skipped and also reports expanded
 parameter cases. Counts are not 276 passing tests. Initial local compilation and
 format warnings in the new TLS/example test sources were corrected; final suites
@@ -90,8 +102,8 @@ failure is a failed/blocked job, never a downgraded or fabricated Swift 6.4 pass
 
 The original local qualification had no Linux runtime. Hosted execution has now
 passed on Ubuntu 24.04.5 with Swift 6.4, including the actual network tests. The
-adapter remains provisional for successful trusted TLS/WSS until that evidence
-is supplied; rejecting an untrusted peer is a separate check.
+new trusted TLS/WSS and fallback changes await hosted Linux confirmation.
+Rejecting an untrusted peer is a separate check from successful negotiation.
 
 ## Remote residuals — #27
 

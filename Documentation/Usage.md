@@ -353,9 +353,14 @@ result. Recovery delay alone does not release that fence. Custom transports must
 honor cancellation and complete close; an uncooperative transport holds admission
 until its handshake/close settles. Disconnect cancels recovery and closes streams. Register new streams after disconnect if connecting again. REST and ticker
 credentials do not update each other. Reconcile missed orders through REST.
-`NIOKiteWebSocketTransport` passed real Ubuntu HTTP/WebSocket tests and remains
-provisional for successful trusted WSS; TLS uses
-default certificate/hostname verification with no insecure switch.
+`NIOKiteWebSocketTransport` passed real Ubuntu HTTP/WebSocket tests. Local trusted
+TLS/WSS, hostname rejection and IP-address handling pass on macOS and iOS Simulator; the latest
+transport changes await hosted matrix confirmation. TLS verifies certificates and
+hostnames with no insecure switch. By default it uses system trust roots. For a
+private origin, `trustRootsPEM` accepts PEM certificates and replaces system roots
+for that transport instance only; it does not install certificates into the OS.
+Do not use the public test fixture CA outside loopback tests. Sandbox WSS remains
+unverified under #27.
 
 ## Incoming postbacks and Publisher
 

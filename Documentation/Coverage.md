@@ -5,7 +5,8 @@ Audited 2026-10-27 against all 17 selected official pages in
 scope, **not a qualified 1.0 release**. macOS/iOS controlled tests do not establish
 remote endpoint success or Ubuntu compatibility. [Verification](Verification.md)
 records executed checks, the successful hosted Ubuntu run and #27 remote gaps.
-Publication blocker #29 is resolved; the Apple CI toolchain correction awaits rerun.
+Publication blocker #29 is resolved. Both hosted checks passed on `ab9bc34`;
+latest local TLS/WSS additions await their own hosted matrix.
 
 The independently extracted [inventory](Evidence/ticket-24-snapshot-inventory.json)
 contains 40 route-table rows and 178 headings. Reading the prose and curl examples

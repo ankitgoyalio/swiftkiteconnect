@@ -90,6 +90,8 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
             continuation.resume(throwing: CancellationError())
             return
         }
+        // URLComponents retains brackets for IPv6 URL literals; socket APIs and SNI do not.
+        let host = parts.host!.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
         let deadline = group.next().scheduleTask(in: .milliseconds(Int64(timeout * 1000))) {
             [weak self] in
             self?.stop(KiteTickerError.transport("WebSocket connection timed out"))
@@ -115,7 +117,6 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
                         let context = try NIOSSLContext(configuration: tlsConfiguration)
                         // Literal IP addresses cannot be sent as SNI. NIOSSL still checks the
                         // peer certificate against the connected IP when no DNS name is supplied.
-                        let host = parts.host!
                         let serverName = (try? SocketAddress(ipAddress: host, port: 0)) == nil ? host : nil
                         let tls = try NIOSSLClientHandler(context: context, serverHostname: serverName)
                         try channel.pipeline.syncOperations.addHandler(tls)
@@ -176,7 +177,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
                     try channel.pipeline.syncOperations.addHandler(request)
                     return channel.eventLoop.makeSucceededVoidFuture()
                 } catch { return channel.eventLoop.makeFailedFuture(error) }
-            }.connect(host: parts.host!, port: parts.port ?? (parts.scheme == "wss" ? 443 : 80))
+            }.connect(host: host, port: parts.port ?? (parts.scheme == "wss" ? 443 : 80))
             .whenFailure { [weak self] _ in
                 self?.stop(KiteTickerError.transport("WebSocket connection failed"))
             }

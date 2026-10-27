@@ -16,11 +16,13 @@ import WebSocketKit
 
 /// Disposable fixture CA and keys are public test material. No system trust changes.
 /// A DNS-only leaf also proves that trusting its CA does not disable hostname checks.
-@Test(.timeLimit(.minutes(1)), arguments: [false, true])
-func `trusted local web socket verifies chain hostname and carries ticks`(literalIP: Bool) async throws {
+@Test(.timeLimit(.minutes(1)), arguments: ["localhost", "127.0.0.1", "[::1]"])
+func `trusted local web socket verifies chain hostname and carries ticks`(host: String) async throws {
+    let literalIP = host != "localhost"
+    let ipv6 = host == "[::1]"
     let ca = try fixtureData("localhost-cert")
-    let leaf = try literalIP ? ca : fixtureData("trusted-localhost-cert")
-    let key = try #require(Bundle.module.url(forResource: literalIP ? "localhost-key" : "trusted-localhost-key", withExtension: "pem", subdirectory: "Fixtures"))
+    let leaf = try ipv6 ? fixtureData("trusted-ipv6-cert") : (literalIP ? ca : fixtureData("trusted-localhost-cert"))
+    let key = try #require(Bundle.module.url(forResource: literalIP && !ipv6 ? "localhost-key" : "trusted-localhost-key", withExtension: "pem", subdirectory: "Fixtures"))
     let certificates = try NIOSSLCertificate.fromPEMBytes(Array(leaf))
     let tls = try TLSConfiguration.makeServerConfiguration(
         certificateChain: certificates.map { .certificate($0) },
@@ -47,7 +49,7 @@ func `trusted local web socket verifies chain hostname and carries ticks`(litera
                 withServerUpgrade: (upgraders: [upgrader], completionHandler: { _ in }),
             )
         } catch { return channel.eventLoop.makeFailedFuture(error) }
-    }.bind(host: "127.0.0.1", port: 0).get()
+    }.bind(host: ipv6 ? "::1" : "127.0.0.1", port: 0).get()
     do {
         let port = try #require(server.localAddress?.port)
         let transport = NIOKiteWebSocketTransport(connectTimeout: 2, trustRootsPEM: ca)
@@ -60,15 +62,14 @@ func `trusted local web socket verifies chain hostname and carries ticks`(litera
         // Malformed explicit roots must never fall back to default trust.
         await #expect(throws: KiteTickerError.self) {
             _ = try await NIOKiteWebSocketTransport(connectTimeout: 2, trustRootsPEM: Data("invalid".utf8))
-                .connect(url: #require(URL(string: "wss://localhost:\(port)/")))
+                .connect(url: #require(URL(string: "wss://\(host):\(port)/")))
         }
         // Valid hostname without its CA must still fail.
         await #expect(throws: KiteTickerError.self) {
             _ = try await NIOKiteWebSocketTransport(connectTimeout: 2).connect(
-                url: #require(URL(string: "wss://localhost:\(port)/")),
+                url: #require(URL(string: "wss://\(host):\(port)/")),
             )
         }
-        let host = literalIP ? "127.0.0.1" : "localhost"
         let ticker = try KiteTicker(apiKey: "local", accessToken: "local",
                                     endpoint: #require(URL(string: "wss://\(host):\(port)/")), transport: transport)
         let stream = try await ticker.ticks()
