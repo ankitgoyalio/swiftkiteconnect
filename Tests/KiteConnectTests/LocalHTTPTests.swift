@@ -11,7 +11,7 @@ import Testing
 /// A real loopback TCP service, shared by Apple and Linux tests. No external account/network.
 private func localService(
   status: Int = 200, body: String = profileJSON, extraHeaders: String = "", delay: Duration = .zero,
-  accepted: AsyncStream<Void>.Continuation? = nil
+  accepted: AsyncStream<Void>.Continuation? = nil, bodyData: Data? = nil
 )
   throws -> (URL, Task<String, any Error>)
 {
@@ -58,9 +58,11 @@ private func localService(
     }
     accepted?.yield(())
     try await Task.sleep(for: delay)
-    let response = Data(
-      "HTTP/1.1 \(status) Test\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\nConnection: close\r\n\(extraHeaders)\r\n\(body)"
+    let payload = bodyData ?? Data(body.utf8)
+    var response = Data(
+      "HTTP/1.1 \(status) Test\r\nContent-Type: application/json\r\nContent-Length: \(payload.count)\r\nConnection: close\r\n\(extraHeaders)\r\n"
         .utf8)
+    response.append(payload)
     try response.withUnsafeBytes { bytes in
       var sent = 0
       while sent < bytes.count {
@@ -131,4 +133,21 @@ private func localService(
   await #expect(throws: CancellationError.self) { try await operation.value }
   service.cancel()
   _ = try? await service.value
+}
+
+@Test func instrumentsDecompressesGzipOverRealLocalHTTP() async throws {
+  // A fixed gzip member containing a complete one-record catalogue, generated independently.
+  let gzip = Data(
+    base64Encoded:
+      "H4sIAAAAAAAC/02NwQqCQBiE74JvMsgaGvkABl2M8ORJNvuxH3WV3T9oe/p2KaLDDDPwMcPGiX0sZKSXdSIDeg53bUb6VrH6xmZ0frmuM4xeCLN20m+WBwrwxtYjTPBEEB6m3vErIKt8Av/N+43gaIzl95ImhTqofYm8rAqcmmMX7dx2LfIi32VVCUBlKgCoL2jaOipN3uMmWHq3AAAA"
+  )!
+  let (url, service) = try localService(extraHeaders: "Content-Encoding: gzip\r\n", bodyData: gzip)
+  let client = try KiteClient(
+    apiKey: "key", configuration: KiteConfiguration(baseURL: url, routePrefix: "/oms"))
+  let instruments = try await client.instruments(exchange: .nse)
+  #expect(instruments.count == 1)
+  #expect(instruments.first?.tradingSymbol == "INFY")
+  #expect(instruments.first?.lastPrice == Decimal(string: "1412.95"))
+  let request = try await service.value.lowercased()
+  #expect(request.hasPrefix("get /instruments/nse http/1.1\r\n"))
 }
