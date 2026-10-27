@@ -1,7 +1,7 @@
 import Foundation
 
 /// Non-order text notifications. Server errors are delivered as values: the documented
-/// payload is only a string, so no authentication/recovery classification is inferred.
+/// payload is a string. Explicit credential/session failures also stop ticker recovery.
 public enum KiteBrokerEvent: Sendable, Equatable {
   case message(String)
   case serverError(String)
