@@ -107,6 +107,7 @@ public actor KiteClient {
   public nonisolated let apiKey: String
   // Actor-isolated access for typed authentication endpoint extensions in this module.
   var accessToken: String?
+  var sessionRevision: UInt64 = 0
   private let transport: any KiteHTTPTransport
 
   public init(
@@ -136,8 +137,9 @@ public actor KiteClient {
   public func replaceAccessToken(_ token: String?) throws {
     if let token { try Self.validateCredential(token, field: "accessToken") }
     accessToken = token
+    sessionRevision &+= 1
   }
-  private static func validateCredential(_ value: String, field: String) throws {
+  static func validateCredential(_ value: String, field: String) throws {
     guard !value.isEmpty,
       !value.contains(where: {
         $0.isWhitespace || $0.isNewline || $0 == ":"
@@ -236,7 +238,7 @@ public actor KiteClient {
     }
     return response
   }
-  private static func encode(_ parameters: [KiteParameter]) -> String {
+  static func encode(_ parameters: [KiteParameter]) -> String {
     let allowed = CharacterSet(
       charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~")
     return parameters.map {
