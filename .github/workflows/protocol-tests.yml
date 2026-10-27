@@ -17,8 +17,19 @@ jobs:
         run: |
           swift --version
           cat /etc/os-release
-      - name: Public protocol and real loopback HTTP tests
-        run: swift test
+      - name: Ubuntu qualification (protocol, examples and real transports)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          bash Scripts/test-ubuntu.sh 2>&1 | tee .test-results/ubuntu.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ubuntu-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: ignore
   apple:
     runs-on: macos-26
     steps:
@@ -39,6 +50,11 @@ jobs:
         run: |
           swift --version
           xcodebuild -version
+      - name: Documentation integrity and offline Publisher examples
+        run: |
+          python3 Scripts/audit-snapshot.py
+          python3 Scripts/check-documentation-examples.py
+          node --test Documentation/Publisher.test.cjs
       - name: macOS public protocol and real loopback HTTP tests
         run: swift test
       - name: iOS Simulator public protocol and real loopback HTTP tests

@@ -12,22 +12,27 @@ let package = Package(
     .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.24.0"),
   ],
   targets: [
-    .target(name: "KiteConnect", dependencies: [
-      .product(name: "Crypto", package: "swift-crypto"),
-      .product(name: "WebSocketKit", package: "websocket-kit"),
-      .product(name: "NIOCore", package: "swift-nio"),
-      .product(name: "NIOPosix", package: "swift-nio"),
-      .product(name: "NIOHTTP1", package: "swift-nio"),
-      .product(name: "NIOWebSocket", package: "swift-nio"),
-      .product(name: "NIOSSL", package: "swift-nio-ssl"),
-    ]),
-    .testTarget(name: "KiteConnectTests", dependencies: [
-      "KiteConnect",
-      .product(name: "WebSocketKit", package: "websocket-kit"),
-      .product(name: "NIOCore", package: "swift-nio"),
-      .product(name: "NIOPosix", package: "swift-nio"),
-      .product(name: "NIOHTTP1", package: "swift-nio"),
-      .product(name: "NIOWebSocket", package: "swift-nio"),
-    ]),
+    .target(
+      name: "KiteConnect",
+      dependencies: [
+        .product(name: "Crypto", package: "swift-crypto"),
+        .product(name: "WebSocketKit", package: "websocket-kit"),
+        .product(name: "NIOCore", package: "swift-nio"),
+        .product(name: "NIOPosix", package: "swift-nio"),
+        .product(name: "NIOHTTP1", package: "swift-nio"),
+        .product(name: "NIOWebSocket", package: "swift-nio"),
+        .product(name: "NIOSSL", package: "swift-nio-ssl"),
+      ]),
+    .testTarget(
+      name: "KiteConnectTests",
+      dependencies: [
+        "KiteConnect",
+        .product(name: "WebSocketKit", package: "websocket-kit"),
+        .product(name: "NIOCore", package: "swift-nio"),
+        .product(name: "NIOPosix", package: "swift-nio"),
+        .product(name: "NIOHTTP1", package: "swift-nio"),
+        .product(name: "NIOWebSocket", package: "swift-nio"),
+        .product(name: "NIOSSL", package: "swift-nio-ssl"),
+      ], resources: [.copy("Fixtures")]),
   ]
 )

@@ -1,89 +1,124 @@
-# Initial release snapshot and coverage checklist
+# Snapshot coverage audit — partial 0.x
 
-This partial 0.x snapshot was captured on **2026-10-27** from official Kite
-Connect v3 documentation. The [manifest](Snapshots/2026-10-27/manifest.json)
-records source URLs and SHA-256 hashes for archived HTML. These pages are the
-coverage authority; SDK route tables are not a completeness claim.
-`Scripts/snapshot-docs.py` captures a new copy for review (network required).
-The checked-in bytes and hashes identify this snapshot even if upstream changes.
+Audited 2026-10-27 against all 17 selected official pages in
+[the manifest](Snapshots/2026-10-27/manifest.json). This is implemented protocol
+scope, **not a qualified 1.0 release**. macOS/iOS controlled tests do not establish
+remote endpoint success or Ubuntu compatibility. [Verification](Verification.md)
+records executed checks, #27 remote gaps and #29 publication/hosted-CI blockers.
 
-Only ticket #4 REST behavior is implemented here. Rows marked pending are visible
-release gaps, not supported APIs. Generic request execution does not constitute
-typed endpoint coverage. Publisher guidance comes from the independently merged
-#23 slice. Final qualification and endpoint review remain #24.
+The independently extracted [inventory](Evidence/ticket-24-snapshot-inventory.json)
+contains 40 route-table rows and 178 headings. Reading the prose and curl examples
+adds GET `/user/margins` and POST `/portfolio/holdings/authorise`: **42 distinct
+method/route contracts**. Query variants, alert types and compact modes are counted
+as capabilities, not extra endpoints. `/mf/sips/` in the table is `/mf/sips` in its
+curl example and implementation. The GTT list prose reverses the route once;
+the table and curl agree on `/gtt/triggers`. No legacy SDK MF mutation route is
+in this snapshot's five read operations.
 
-| Documentation page | Method | Route | Ticket | Coverage / evidence |
+## Endpoint/API/test/usage matrix
+
+Every row is implemented and has controlled public-client protocol tests for
+request routing/encoding and typed response handling. Linked test files include
+negative/compatibility cases; their existence is not remote evidence. All HTTP
+operations share version/authentication, timeout, one-attempt, error and
+cancellation contracts. More detailed cases and original red-green records remain
+in the ticket guides. Examples below refer to functions in the
+[compiled usage examples](Usage.md), not to executed trading calls.
+
+| Official snapshot | Method and route | Implementation / public API | Public protocol tests | Compiled usage function |
 | --- | --- | --- | --- | --- |
-| [user](Snapshots/2026-10-27/user.html) | POST | `/session/token` | #5 | Pending typed API, protocol tests and usage |
-| [user](Snapshots/2026-10-27/user.html) | GET | `/user/profile` | #4 | `KiteClient.profile()`; `ProfileTests.swift`, `LocalHTTPTests.swift`; README example |
-| [user](Snapshots/2026-10-27/user.html) | GET | `/user/margins/:segment` | #6 | Pending typed API, protocol tests and usage |
-| [user](Snapshots/2026-10-27/user.html) | DELETE | `/session/token` | #5 | Pending typed API, protocol tests and usage |
-| [user](Snapshots/2026-10-27/user.html) | GET | `/user/margins` | #6 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | POST | `/orders/:variety` | #11 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | PUT | `/orders/:variety/:order_id` | #11 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | DELETE | `/orders/:variety/:order_id` | #11 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | GET | `/orders` | #10 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | GET | `/orders/:order_id` | #10 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | GET | `/trades` | #10 | Pending typed API, protocol tests and usage |
-| [orders](Snapshots/2026-10-27/orders.html) | GET | `/orders/:order_id/trades` | #10 | Pending typed API, protocol tests and usage |
-| [gtt](Snapshots/2026-10-27/gtt.html) | POST | `/gtt/triggers` | #12 | Pending typed API, protocol tests and usage |
-| [gtt](Snapshots/2026-10-27/gtt.html) | GET | `/gtt/triggers` | #12 | Pending typed API, protocol tests and usage |
-| [gtt](Snapshots/2026-10-27/gtt.html) | GET | `/gtt/triggers/:id` | #12 | Pending typed API, protocol tests and usage |
-| [gtt](Snapshots/2026-10-27/gtt.html) | PUT | `/gtt/triggers/:id` | #12 | Pending typed API, protocol tests and usage |
-| [gtt](Snapshots/2026-10-27/gtt.html) | DELETE | `/gtt/triggers/:id` | #12 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | POST | `/alerts` | #13, 14 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | GET | `/alerts` | #13, 14 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | GET | `/alerts/{uuid}` | #13, 14 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | PUT | `/alerts/{uuid}` | #13, 14 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | DELETE | `/alerts?uuid={uuid}` | #13, 14 | Pending typed API, protocol tests and usage |
-| [alerts](Snapshots/2026-10-27/alerts.html) | GET | `/alerts/{uuid}/history` | #13, 14 | Pending typed API, protocol tests and usage |
-| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET | `/portfolio/holdings` | #15 | Pending typed API, protocol tests and usage |
-| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET | `/portfolio/positions` | #15 | Pending typed API, protocol tests and usage |
-| [portfolio](Snapshots/2026-10-27/portfolio.html) | PUT | `/portfolio/positions` | #15 | Pending typed API, protocol tests and usage |
-| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET | `/portfolio/holdings/auctions` | #15 | Pending typed API, protocol tests and usage |
-| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET | `/instruments` | #7, 8 | Pending typed API, protocol tests and usage |
-| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET | `/instruments/:exchange` | #7, 8 | Pending typed API, protocol tests and usage |
-| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET | `/quote` | #7, 8 | Pending typed API, protocol tests and usage |
-| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET | `/quote/ohlc` | #7, 8 | Pending typed API, protocol tests and usage |
-| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET | `/quote/ltp` | #7, 8 | Pending typed API, protocol tests and usage |
-| [historical](Snapshots/2026-10-27/historical.html) | GET | `/instruments/historical/:instrument_token/:interval` | #9 | Pending typed API, protocol tests and usage |
-| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET | `/mf/orders` | #17 | Pending typed API, protocol tests and usage |
-| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET | `/mf/orders/:order_id` | #17 | Pending typed API, protocol tests and usage |
-| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET | `/mf/sips/` | #17 | Pending typed API, protocol tests and usage |
-| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET | `/mf/holdings` | #17 | Pending typed API, protocol tests and usage |
-| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET | `/mf/instruments` | #17 | Pending typed API, protocol tests and usage |
-| [margins](Snapshots/2026-10-27/margins.html) | POST | `/margins/orders` | #16 | Pending typed API, protocol tests and usage |
-| [margins](Snapshots/2026-10-27/margins.html) | POST | `/margins/basket` | #16 | Pending typed API, protocol tests and usage |
-| [margins](Snapshots/2026-10-27/margins.html) | POST | `/charges/orders` | #16 | Pending typed API, protocol tests and usage |
+| [user](Snapshots/2026-10-27/user.html) | POST `/session/token` | [Authentication.swift](../Sources/KiteConnect/Authentication.swift): `exchangeRequestToken(_:apiSecret:)` | [AuthenticationTests](../Tests/KiteConnectTests/AuthenticationTests.swift): `exchangeUsesOfficialFixtureAndKnownChecksumThenAuthenticates` | `exchangeOnBackend` |
+| [user](Snapshots/2026-10-27/user.html) | GET `/user/profile` | [KiteClient.swift](../Sources/KiteConnect/KiteClient.swift): `profile()` | [ProfileTests](../Tests/KiteConnectTests/ProfileTests.swift): `profileUsesVersionAndIsolatedCredentials` | `exchangeOnBackend` |
+| [user](Snapshots/2026-10-27/user.html) | GET `/user/margins` | [AccountMargins.swift](../Sources/KiteConnect/AccountMargins.swift): `margins()` | [AccountMarginsTests](../Tests/KiteConnectTests/AccountMarginsTests.swift): `accountMarginsReturnsBothCompleteFinancialSegments` | `exchangeOnBackend` |
+| [user](Snapshots/2026-10-27/user.html) | GET `/user/margins/:segment` | [AccountMargins.swift](../Sources/KiteConnect/AccountMargins.swift): `margins(segment:)` | [AccountMarginsTests](../Tests/KiteConnectTests/AccountMarginsTests.swift): `accountMarginsSelectsDocumentedSegment` | `exchangeOnBackend` |
+| [user](Snapshots/2026-10-27/user.html) | DELETE `/session/token` | [Authentication.swift](../Sources/KiteConnect/Authentication.swift): `invalidateSession()` | [AuthenticationTests](../Tests/KiteConnectTests/AuthenticationTests.swift): `successfulInvalidationRevokesAndClearsOnlyThisSession` | `endSession` |
+| [orders](Snapshots/2026-10-27/orders.html) | POST `/orders/:variety` | [OrderMutations.swift](../Sources/KiteConnect/OrderMutations.swift): `placeOrder(_:)` | [OrderMutationsTests](../Tests/KiteConnectTests/OrderMutationsTests.swift): `orderMutationPlacesLimitWithExactDocumentedForm` | `controlledOrderLifecycle` |
+| [orders](Snapshots/2026-10-27/orders.html) | PUT `/orders/:variety/:order_id` | [OrderMutations.swift](../Sources/KiteConnect/OrderMutations.swift): `modifyOrder(orderID:variety:parentOrderID:changes:)` | [OrderMutationsTests](../Tests/KiteConnectTests/OrderMutationsTests.swift): `orderMutationModifiesAndCancelsChildWithParentIdentifier` | `controlledOrderLifecycle` |
+| [orders](Snapshots/2026-10-27/orders.html) | DELETE `/orders/:variety/:order_id` | [OrderMutations.swift](../Sources/KiteConnect/OrderMutations.swift): `cancelOrder(orderID:variety:parentOrderID:)` | [OrderMutationsTests](../Tests/KiteConnectTests/OrderMutationsTests.swift): `orderMutationRoutesModificationAndCancellationForEveryVariety` | `controlledOrderLifecycle` |
+| [orders](Snapshots/2026-10-27/orders.html) | GET `/orders` | [Orders.swift](../Sources/KiteConnect/Orders.swift): `orders()` | [OrdersTests](../Tests/KiteConnectTests/OrdersTests.swift): `ordersReadDocumentedBookWithoutWriting` | `inspectOrder` |
+| [orders](Snapshots/2026-10-27/orders.html) | GET `/orders/:order_id` | [Orders.swift](../Sources/KiteConnect/Orders.swift): `orderHistory(orderID:)` | [OrdersTests](../Tests/KiteConnectTests/OrdersTests.swift): `ordersReadHistoryForCallerSuppliedIDAndPreserveInterimStates` | `inspectOrder` |
+| [orders](Snapshots/2026-10-27/orders.html) | GET `/trades` | [Orders.swift](../Sources/KiteConnect/Orders.swift): `trades()` | [OrdersTests](../Tests/KiteConnectTests/OrdersTests.swift): `ordersReadAllTradesAndOrderTradesAsSeparateFills` | `inspectOrder` |
+| [orders](Snapshots/2026-10-27/orders.html) | GET `/orders/:order_id/trades` | [Orders.swift](../Sources/KiteConnect/Orders.swift): `orderTrades(orderID:)` | [OrdersTests](../Tests/KiteConnectTests/OrdersTests.swift): `ordersReadAllTradesAndOrderTradesAsSeparateFills` | `inspectOrder` |
+| [gtt](Snapshots/2026-10-27/gtt.html) | POST `/gtt/triggers` | [GTT.swift](../Sources/KiteConnect/GTT.swift): `createGTT(_:)` | [GTTTests](../Tests/KiteConnectTests/GTTTests.swift): `gttCreateEncodesSingleAndOCOAsJSONInsideFormWithDecimalPrices` | `controlledGTTLifecycle` |
+| [gtt](Snapshots/2026-10-27/gtt.html) | GET `/gtt/triggers` | [GTT.swift](../Sources/KiteConnect/GTT.swift): `gttTriggers()` | [GTTTests](../Tests/KiteConnectTests/GTTTests.swift): `gttListDecodesOfficialActiveAndTriggeredExamples` | `controlledGTTLifecycle` |
+| [gtt](Snapshots/2026-10-27/gtt.html) | GET `/gtt/triggers/:id` | [GTT.swift](../Sources/KiteConnect/GTT.swift): `gttTrigger(id:)` | [GTTTests](../Tests/KiteConnectTests/GTTTests.swift): `gttDetailPreservesUnknownValuesOptionalResultsAndTimestampOffsets` | `controlledGTTLifecycle` |
+| [gtt](Snapshots/2026-10-27/gtt.html) | PUT `/gtt/triggers/:id` | [GTT.swift](../Sources/KiteConnect/GTT.swift): `modifyGTT(id:trigger:)` | [GTTTests](../Tests/KiteConnectTests/GTTTests.swift): `gttModifyReplacesDefinitionAndDeleteReturnsDocumentedReceipt` | `controlledGTTLifecycle` |
+| [gtt](Snapshots/2026-10-27/gtt.html) | DELETE `/gtt/triggers/:id` | [GTT.swift](../Sources/KiteConnect/GTT.swift): `deleteGTT(id:)` | [GTTTests](../Tests/KiteConnectTests/GTTTests.swift): `gttModifyReplacesDefinitionAndDeleteReturnsDocumentedReceipt` | `controlledGTTLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | POST `/alerts` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `createAlert(_:) (simple and ATO overloads)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsCreateAndModifyEncodeConstantAndInstrumentConditions; atoCreateSendsTheDocumentedBasketJSONInsideAlertForm` | `controlledAlertLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | GET `/alerts` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `alerts(status:page:pageSize:)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsListFiltersAndPreservesUnknownServerValues` | `controlledAlertLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | GET `/alerts/{uuid}` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `alert(uuid:)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsRetrieveCompleteSimpleModelWithSharedTimestampPolicy` | `controlledAlertLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | PUT `/alerts/{uuid}` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `modifyAlert(uuid:alert:) (simple and ATO)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsCreateAndModifyEncodeConstantAndInstrumentConditions; atoFetchModifyRetainsSparseBasketAndDecimalValues` | `controlledAlertLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | DELETE `/alerts?uuid={uuid}` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `deleteAlert(uuid:), deleteAlerts(uuids:)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsDeleteSingleAndBulkUseRepeatedQueryAndNullReceipt` | `controlledAlertLifecycle` |
+| [alerts](Snapshots/2026-10-27/alerts.html) | GET `/alerts/{uuid}/history` | [Alerts.swift](../Sources/KiteConnect/Alerts.swift): `alertHistory(uuid:)` | [AlertsTests](../Tests/KiteConnectTests/AlertsTests.swift), [ATOAlertsTests](../Tests/KiteConnectTests/ATOAlertsTests.swift): `alertsHistoryDecodesDocumentedMarketDataIncludingYearOneSentinel; atoHistoryTypesDocumentedAbsenceAndRetainsUndocumentedMetadata` | `controlledAlertLifecycle` |
+| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET `/portfolio/holdings` | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift): `holdings()` | [PortfolioTests](../Tests/KiteConnectTests/PortfolioTests.swift), [PortfolioContractsTests](../Tests/KiteConnectTests/PortfolioContractsTests.swift): `portfolioHoldingsDecodeOfficialFinancialAndAuthorisationData` | `portfolioReads` |
+| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET `/portfolio/positions` | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift): `positions()` | [PortfolioTests](../Tests/KiteConnectTests/PortfolioTests.swift), [PortfolioContractsTests](../Tests/KiteConnectTests/PortfolioContractsTests.swift): `portfolioPositionsSeparateNetAndDayActivityWithSignedQuantities` | `portfolioReads` |
+| [portfolio](Snapshots/2026-10-27/portfolio.html) | PUT `/portfolio/positions` | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift): `convertPosition(_:)` | [PortfolioTests](../Tests/KiteConnectTests/PortfolioTests.swift), [PortfolioContractsTests](../Tests/KiteConnectTests/PortfolioContractsTests.swift): `portfolioConversionUsesDocumentedPutFormAndBooleanResult` | `controlledConversion` |
+| [portfolio](Snapshots/2026-10-27/portfolio.html) | GET `/portfolio/holdings/auctions` | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift): `auctionHoldings()` | [PortfolioTests](../Tests/KiteConnectTests/PortfolioTests.swift), [PortfolioContractsTests](../Tests/KiteConnectTests/PortfolioContractsTests.swift): `portfolioAuctionHoldingsPreserveAuctionIdentityAndSparseMetadata` | `portfolioReads` |
+| [portfolio](Snapshots/2026-10-27/portfolio.html) | POST `/portfolio/holdings/authorise` | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift): `authoriseHoldings(instruments:)` | [PortfolioTests](../Tests/KiteConnectTests/PortfolioTests.swift), [PortfolioContractsTests](../Tests/KiteConnectTests/PortfolioContractsTests.swift): `portfolioAuthorisationSendsOptionalRepeatedPairsInDocumentedOrder` | `prepareHoldingsAuthorisation` |
+| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET `/instruments` | [Instruments.swift](../Sources/KiteConnect/Instruments.swift): `instruments()` | [InstrumentsTests](../Tests/KiteConnectTests/InstrumentsTests.swift): `instrumentsDownloadsTypedCatalogueWithoutSandboxOMSPrefix` | `marketReads` |
+| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET `/instruments/:exchange` | [Instruments.swift](../Sources/KiteConnect/Instruments.swift): `instruments(exchange:)` | [InstrumentsTests](../Tests/KiteConnectTests/InstrumentsTests.swift): `instrumentsSupportsExchangeDateOnlyExpiryAndPersistentIdentity` | `marketReads` |
+| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET `/quote` | [QuoteSnapshots.swift](../Sources/KiteConnect/QuoteSnapshots.swift): `quotes(instruments:)` | [QuoteSnapshotsTests](../Tests/KiteConnectTests/QuoteSnapshotsTests.swift): `quotesDecodeFullDepthNullableTradeAndDefaultTradingTimestamp` | `marketReads` |
+| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET `/quote/ohlc` | [QuoteSnapshots.swift](../Sources/KiteConnect/QuoteSnapshots.swift): `ohlc(instruments:)` | [QuoteSnapshotsTests](../Tests/KiteConnectTests/QuoteSnapshotsTests.swift): `ohlcReturnsTypedPricesWithoutRequiringCatalogue` | `marketReads` |
+| [market-quotes](Snapshots/2026-10-27/market-quotes.html) | GET `/quote/ltp` | [QuoteSnapshots.swift](../Sources/KiteConnect/QuoteSnapshots.swift): `ltp(instruments:)` | [QuoteSnapshotsTests](../Tests/KiteConnectTests/QuoteSnapshotsTests.swift): `ltpAcceptsSuppliedIdentitiesAndPreservesMissingKeysAndDecimalPrices` | `marketReads` |
+| [historical](Snapshots/2026-10-27/historical.html) | GET `/instruments/historical/:instrument_token/:interval` | [HistoricalCandles.swift](../Sources/KiteConnect/HistoricalCandles.swift): `historicalCandles(instrumentToken:interval:from:to:continuous:oi:)` | [HistoricalCandlesTests](../Tests/KiteConnectTests/HistoricalCandlesTests.swift): `historicalReturnsDocumentedCandleAndEncodedBounds; historicalSupportsEveryIntervalAndOI` | `marketReads` |
+| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET `/mf/orders` | [MutualFunds.swift](../Sources/KiteConnect/MutualFunds.swift): `mutualFundOrders()` | [MutualFundsTests](../Tests/KiteConnectTests/MutualFundsTests.swift): `mfOrdersReturnsTypedDocumentedOrders` | `mutualFundReads` |
+| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET `/mf/orders/:order_id` | [MutualFunds.swift](../Sources/KiteConnect/MutualFunds.swift): `mutualFundOrder(orderID:)` | [MutualFundsTests](../Tests/KiteConnectTests/MutualFundsTests.swift): `mfIndividualOrderSupportsExternalIDAndValidatesPath` | `mutualFundReads` |
+| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET `/mf/sips/` | [MutualFunds.swift](../Sources/KiteConnect/MutualFunds.swift): `mutualFundSIPs()` | [MutualFundsTests](../Tests/KiteConnectTests/MutualFundsTests.swift): `mfSIPsReturnsActiveAndPausedPlansWithDatesAndAmounts` | `mutualFundReads` |
+| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET `/mf/holdings` | [MutualFunds.swift](../Sources/KiteConnect/MutualFunds.swift): `mutualFundHoldings()` | [MutualFundsTests](../Tests/KiteConnectTests/MutualFundsTests.swift): `mfHoldingsPreservesFractionalUnitsAndEmptyNAVDate` | `mutualFundReads` |
+| [mutual-funds](Snapshots/2026-10-27/mutual-funds.html) | GET `/mf/instruments` | [MutualFundInstruments.swift](../Sources/KiteConnect/MutualFundInstruments.swift): `mutualFundInstruments()` | [MutualFundsTests](../Tests/KiteConnectTests/MutualFundsTests.swift): `mfInstrumentsDownloadsIndependentTypedCatalogueUsingOMSPrefix` | `mutualFundReads` |
+| [margins](Snapshots/2026-10-27/margins.html) | POST `/margins/orders` | [MarginCalculations.swift](../Sources/KiteConnect/MarginCalculations.swift): `orderMargins(_:), compactOrderMargins(_:)` | [MarginCalculationsTests](../Tests/KiteConnectTests/MarginCalculationsTests.swift): `calculationOrderMarginsUsesJSONAndReturnsDecimalBreakdown; calculationCompactMarginsAllowOnlyTotalsWithoutWeakeningFullResponses` | `estimates` |
+| [margins](Snapshots/2026-10-27/margins.html) | POST `/margins/basket` | [MarginCalculations.swift](../Sources/KiteConnect/MarginCalculations.swift): `basketMargins(_:considerPositions:), compactBasketMargins(_:considerPositions:)` | [MarginCalculationsTests](../Tests/KiteConnectTests/MarginCalculationsTests.swift): `calculationBasketReturnsSpreadBenefitAndPerOrderCharges; calculationCompactMarginsAllowOnlyTotalsWithoutWeakeningFullResponses` | `estimates` |
+| [margins](Snapshots/2026-10-27/margins.html) | POST `/charges/orders` | [MarginCalculations.swift](../Sources/KiteConnect/MarginCalculations.swift): `orderCharges(_:)` | [MarginCalculationsTests](../Tests/KiteConnectTests/MarginCalculationsTests.swift): `calculationChargesAcceptsImaginaryOrdersAndReturnsTaxBreakdown` | `estimates` |
 
-Supplementary capabilities require reviewing prose and examples as well as tables:
+## Prose and non-REST capability audit
 
-| Capability | Ticket | Status |
+All 178 heading entries (including response/parameter subheadings) in the inventory
+were reviewed as part of their page below. This table records the substantive
+prose capabilities separately so a route-table match cannot hide a scope gap.
+SDK policy choices are distinguished from server guarantees.
+
+| Snapshot page / prose capability | Implementation and independent public evidence | Guidance / remaining qualification |
 | --- | --- | --- |
-| Login URL, backend SHA-256 exchange, session invalidation | #5 | Pending; local access-token replacement is available |
-| Portfolio holdings authorisation POST and browser handoff | #15 | Pending; absent from portfolio summary table |
-| Repeated alert deletion UUIDs, filtering/history, ATO baskets | #13, #14 | Pending |
-| Order auto-slice/mixed outcomes, varieties, market protection, parent identifiers | #11 | Pending |
-| Instrument CSV, distinct persistent identity/token, date-only expiry | #7 | Pending |
-| Decimal financial fields; explicit/configured offsetless timestamps | #6–#22 | Pending where applicable; profile has no financial/date fields |
-| LTP binary frames, independent bounded subscribers, real WebSocket transport | #18 | Pending transport selection and Apple/Ubuntu evidence |
-| Quote/full/index modes and depth | #19 | Pending |
-| Text order updates, broker messages, isolated order buffers | #20 | Pending |
-| Recovery, possible gaps, authentication stop, credential replacement | #21 | Pending |
-| Postback checksum validation and typed decoding | #22 | Pending |
-| Publisher offsite/JS browser flows | #23 | [Guidance and offline tests](Publisher.md); no endpoint wrapper |
-| Cross-platform complete capability audit | #24 | Pending; no 1.0 qualification claim |
+| Introduction: account prerequisites, app registration, unofficial status | Package is one `KiteConnect` library; Swift 6.4, iOS 18+, macOS 15+ in Package.swift; no UI frameworks | README and Usage; app/account setup remains external; Linux intended but unqualified |
+| User: login URL, redirect params, checksum exchange, signed requests, logout | `Authentication.swift`, `AuthenticationTests`; checksum literal and late-session fences, isolated clients | Usage authentication; approved refresh/revoke operations below exceed snapshot route scope; remote auth absent #27 |
+| Response structure: form/query/envelope, explicit JSON exceptions, IST timestamps | `KiteClient`, `HTTP`, CSV/model adapters; `ProfileTests`, `LocalHTTPTests`; injected transport returns decompressed bytes | Usage REST; margins explicitly use JSON per their page, CSV raw bytes; MF SIP missing-status example handled explicitly |
+| Exceptions: raw exception names, HTTP codes, rate limits, expired session | `KiteAPIError`, single-attempt and cancellation tests across endpoint families; unfamiliar errors and 429 retained | App scheduling/relogin; no automatic REST retry or queue; limits are dated server policy, not hardcoded business eligibility |
+| Orders: varieties, sides/products/types/validity, TTL, iceberg, auction, market protection, tags, auto-slice mixed results | `OrderMutationsTests`: all options and varieties, child parent IDs, mixed results, malformed receipt uncertainty; `OrdersTests`: interim states, tags/meta, partial fills, large quantities | Usage orders; receipt != execution; max ten auto-slices and other exchange limits remain broker-owned; all remote mutations unverified #27 |
+| GTT: single/OCO forms, conditions/orders JSON, lifecycle statuses, nested execution | `GTTTests`: independent snapshot fixtures, one/two leg validation, Decimal prices, optional results, unknown enums, dates and errors | Usage and Ticket-12; no replay/resubmit; list covers active + previous-seven-day other states, detail is age-independent; snapshot typo documented above; sandbox excludes remote GTT #27 |
+| Alerts: simple/ATO, operators, constant/instrument RHS, pagination/status/history, repeated deletion | `AlertsTests`, `ATOAlertsTests`: full wire forms and sparse basket responses, basket-only parameters, optional nested GTT, unknown metadata and year-one history timestamp | Usage and Tickets 13/14; 500 active alerts is broker policy; remote trigger/order execution unverified #27 |
+| Portfolio: holdings/MTF, signed net/day positions, auctions, conversion | `PortfolioTests`, `PortfolioContractsTests`: independent official samples, precise money, product/identity, 162 required-field corruptions, cancellation and uncertain mutations | Usage portfolio; remote account state/conversion unverified #27; authorisations are trading-session scoped per the snapshot |
+| Portfolio: opposite-side same-product exits, no exit endpoint | Ordinary `placeOrder`; compiled `submitPositionExit`, plus existing mutation wire tests | Usage explains LIMIT nonfill, matching identity/product and post-submit reconciliation; no synthetic exit API or live exit claim |
+| Portfolio: authorisation, optional repeated ISIN/quantity, 428, browser finish, depository PIN | `authoriseHoldings`, `holdingsAuthorisationFlow`; portfolio public tests cover pairs, empty selection, exact URL recognition and unknown status | Usage and Publisher `authHoldings`; no documented sandbox browser origin, no remote completion #27 |
+| Instruments: daily gzipped CSV, symbol/token distinction, reused tokens, date-only expiry | `InstrumentsTests`: quoted/escaped/multiline/BOM/reordered CSV, exact Decimal, date-only across zones, unknown fields/types; transport decompresses | App owns persistence, refresh and expired-token mappings; prior public sandbox NSE smoke succeeded; optional rerun recorded in Verification |
+| Quotes: repeated `i`, 500/1000 limits, missing instruments, OHLC/depth/OI/timestamps | `QuoteSnapshotsTests`: supplied identities without catalogue, missing map entries, nullable values, malformed fields, exact Decimal and timezone policy | Usage; Cloudflare-blocked sandbox probes are not functional quote success #27 |
+| Historical: all eight intervals, granular range, continuous futures/day, optional OI, expired tokens | `HistoricalCandlesTests`: every interval, six/seven fields, configured/explicit time, Decimal, request validation and policy errors | Usage; continuous NFO/MCX uses live token; app retains expired mappings; remote unverified #27 |
+| MF: last-seven-day/all-age order reads, active/paused SIPs, fractional holdings/NAV, independent CSV | `MutualFundsTests`: literal official JSON/CSV, -1 sentinels, date-only exchange/NAV/next-instalment, step-up, optional price, status-less SIP envelope | Usage and Ticket-17; no placement or dividend reinvestment per snapshot; all five remote reads unverified #27, public equity CSV success does not qualify MF |
+| Margins: full/compact, existing-position flag, spread totals/per-order charges, imaginary-order virtual note | `MarginCalculationsTests`: independent JSON bodies and tax/GST breakdowns, Decimal, compact-only shape, imaginary IDs, no order submission; aggregate mixed STT/CTT charges are not authoritative per-order tax totals | Usage and Ticket-16; calculations explicitly excluded from sandbox #27 |
+| WebSocket: handshake params, three connections/key, 3000 tokens/connection, subscribe/unsubscribe/modes | `TickerTests`, `TickerBinaryTests`: public commands, sandbox `user_id`, limits and one explicit connection owner | Usage; app allocates separate tickers; no pool; real sandbox stream unverified #27 |
+| WebSocket: binary count/length framing, heartbeat, LTP/quote/full/index, 5+5 depth, scaling and epoch time | `TickerBinaryTests`, `TickerTests`: independent literal packet layouts, multipackets, malformed/truncated frames, signed index change, Decimal prices and currency/segment divisors | Usage; supplementary segment divisors are official-SDK references, not a broader prose completeness claim |
+| WebSocket: text order/error/message and forward compatibility | `TickerTextTests`: shared order model, typed broker events, unknown JSON, malformed data and required fields | Usage; authentication-string recognition is narrow SDK policy, not a documented typed auth schema |
+| Spec streaming policy: recovery, gaps, auth stop, session fencing, desired-state restore, bounded independent subscribers | `TickerRecoveryTests`: controlled time/handshake/write gates; all five packet layouts plus text after recovery; `TickerTextTests`: quote/order overflow and cancellation isolation | Usage; no replay; app reconciles; adapter ingress overflow is a connection-level failure; Linux adapter remains provisional |
+| Postback: raw JSON, checksum, notifications vs execution, app scope vs user-wide WebSocket | `PostbacksTests`: known SHA-256, original UTF-8 timestamp, invalid/tampered input; `CrossChannelIntegrationTests`: REST/WS/postback agreement with unknown status, precise money and configured time | Usage; backend owns server, routing, deduplication/replay handling; checksum binds ID/timestamp, not every field; actual delivery unverified #27 |
+| Offsite basket: user browser form POST, optional session, readonly, order parameters | `Publisher.md`, `Publisher.test.cjs`: preparation/callback checks, no network | Offsite callback terminology conflicts with canonical login; guide records it; no production fallback or remote browser completion #27 |
+| Publisher: ready/static/custom/dynamic buttons, add/render/link, options/redirect, callbacks and authorisation | `Publisher.md`, offline JS tests: ten-entry limit, app ownership, callback validation | iOS WebView cookie restriction; prefer offsite; JS tag max eight differs from offsite max twenty; no Swift plugin implementation |
+| Sandbox: login, /oms routing exceptions, user_id, supported snippets/exclusions | Config and family protocol tests independently assert sandbox paths; equity dumps bypass /oms, MF does not | Sandbox only for external API verification; GTT/calculations/MARKET unavailable; authenticated credentials missing #27 |
 
-Foundation coverage includes session isolation/replacement, headers, single
-attempts, timeout propagation, cancellation, structural validation, open enum
-values, additional fields, malformed data, form/JSON/repeated-query encoding,
-HTTP/API/decoding/transport failures, and uncertain mutation outcomes. No trading
-endpoint is implemented or submitted by these tests.
+## SDK-reference additions and scope boundaries
 
-[Verification](Verification.md) distinguishes executed local Apple checks from
-configured Ubuntu CI. Successful authenticated sandbox execution is excluded
-without user credentials and tracked in
-[verification issue #27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27).
-Sandbox GTT/margin calculations and MARKET orders have documented exclusions.
-All external API tests must remain sandbox-only. Local controlled success is
-not proof that a sandbox endpoint or a production account works.
+`renewSession(refreshToken:apiSecret:)` POSTs `/session/refresh_token` and
+`invalidateRefreshToken(_:)` DELETEs `/session/token` with refresh-token parameters.
+They follow the official SDK reference recorded in Ticket-5, with protocol tests
+`renewalInstallsTokenUsingRefreshChecksumWithoutSendingSecret` and
+`refreshInvalidationIsIndependentOfInstalledAccessToken`, and the compiled
+`approvedPlatformRenewal` example. The selected user page mentions restricted
+refresh permissions but does not specify these full wire contracts; these are
+**additional provisional SDK-reference APIs**, not two newly discovered snapshot
+endpoints or remote-qualified features.
+
+No missing typed snapshot route was found in this audit. Concrete corrections in
+#24 are the stale release docs, executable usage coverage, a cross-channel
+integration test, explicit TLS trust-failure coverage and reproducible audit checks.
+No production behavior bug or production-source fix is claimed. Routine fixtures
+cannot resolve Ubuntu execution, broker/account eligibility, browser completion or
+authenticated sandbox evidence. **#24 acceptance remains incomplete while Linux
+qualification is missing**, and the package must remain partial 0.x.

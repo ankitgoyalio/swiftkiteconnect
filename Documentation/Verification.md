@@ -1,75 +1,122 @@
-# Ticket #4 verification record
+# Verification — partial 0.x
 
-Executed **2026-10-27**, on macOS arm64 with Apple Swift **6.4**
-(`swiftlang-6.4.0.34.1`) and Xcode **27.1 (27A9275)**.
-This is evidence for the HTTP/profile foundation, not a release qualification.
+Executed 2026-10-27 for ticket #24 on macOS arm64, Apple Swift 6.4
+(`swiftlang-6.4.0.34.1`), Xcode 27.1 (`27A9275`). This record supersedes the old
+foundation-only verification page; historical slice evidence remains in
+`Documentation/Evidence/ticket-4-*` through `ticket-23-*` where present.
+**The complete #24 acceptance matrix is not achieved: Ubuntu has not run.**
+No 1.0 completeness, production qualification or remote trading success is claimed.
 
-| Check | Evidence / result |
-| --- | --- |
-| macOS public SDK protocol suite | 19 Swift Testing tests passed |
-| macOS actual URLSession HTTP | Loopback profile, headers, redirect refusal, deadline and in-flight cancellation passed |
-| iOS Simulator | 19 tests passed on iPhone 18 Pro, iOS 27.0; includes actual loopback HTTP |
-| Additional simulator/script check | Earlier 17-test suite passed on iPhone Duo, iOS 27.1 using `Scripts/test-ios.sh` |
-| Ubuntu 24.04 | CI configured with Swift 6.4.0; **not executed locally**, no Linux/container runtime available |
-| GitHub Actions macOS/iOS/Ubuntu | Workflow configured; **not run on GitHub** because this implementation is not pushed |
-| Documentation snapshot | 17 official HTML sources captured; manifest SHA-256 hashes verified against all files |
-| Successful authenticated sandbox profile | **Not run**: no sandbox user credentials/access token; tracked by [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) |
-| Production API / live trades | No requests made |
-| Real WebSocket transport | Not selected or verified by this ticket; #18 owns validation |
+| Check | Executed result / boundary | Durable evidence |
+| --- | --- | --- |
+| Full macOS suite, final source, `TZ=Pacific/Honolulu` | 272 named tests: 271 passed, 1 opt-in sandbox test skipped, zero failures; no compiler warnings in final run | [macOS log](Evidence/ticket-24-macos.txt) |
+| Full iOS Simulator suite | iPhone Duo / iOS 27.1 / arm64: 272 named tests, 271 passed, 1 skipped, zero failures/runtime warnings; result summary also counts 1321 passed parameter-expanded executions | [iOS summary](Evidence/ticket-24-ios-summary.json) |
+| Real local HTTP | Passed as part of both suites: actual URLSession TCP requests, headers/path, redirect refusal, timeout, cancellation | `LocalHTTPTests.swift`, full suite above |
+| Real local WebSocket | Passed as part of both suites: actual HTTP upgrade, masked writes, binary/text, fragment reassembly, peer close, 403 rejection, cancellation, timeout, bounded ingress overflow | `LocalWebSocketTests.swift`, full suite above |
+| Local TLS | Passed on both Apple targets: real self-signed TLS peer rejected by default HTTP and WebSocket transports | `LocalTLSTests.swift`; fixture key is public test material only |
+| Trusted local TLS / successful WSS | **Not executed**: no isolated trusted local CA setup; no trust bypass added; sandbox authenticated WSS also absent. Public sandbox HTTPS succeeded in the opt-in CSV test below | Visible transport qualification residual |
+| Combined streaming/recovery/session/subscriber behavior | Passed: all 8/28/32/44/184-byte layouts, text events after recovery, bounded backoff, credential fences, desired-state restore and isolated overflow/cancellation | `TickerRecoveryTests.swift`, `TickerTextTests.swift` |
+| REST/WebSocket/postback consistency | Passed in Asia/Kolkata and UTC: unknown status, exact Decimal, matching order state/timestamps, replacement REST credential | `CrossChannelIntegrationTests.swift` |
+| Public Swift examples | All nine README/Usage Swift blocks compile in the full suite; drift check passed | [compiled source](../Tests/KiteConnectTests/DocumentationExamples.swift), [checks](Evidence/ticket-24-checks.txt) |
+| Publisher examples | 3 offline Node tests passed; no browser/remote submission | [checks](Evidence/ticket-24-checks.txt) |
+| Snapshot integrity and mapping consistency | All 17 SHA-256 hashes and byte counts verified; independent 40 table rows + 2 prose routes, 178 headings; all 42 API/named-test/example mappings resolve | [inventory](Evidence/ticket-24-snapshot-inventory.json), [Coverage](Coverage.md) |
+| Public sandbox equity instrument smoke | Separately executed opt-in test passed: 10,093 NSE records via default HTTP; no authenticated session | [sandbox log](Evidence/ticket-24-sandbox.txt) |
+| Authenticated sandbox | **Not executed**: no user credentials/access token; remote endpoint, streaming and browser cases remain #27 | Residual list below |
+| Ubuntu 24.04 | **Not executed**: no existing Linux/container/VM runtime or Swift SDK installed on this host | [environment](Evidence/ticket-24-environment.txt) |
+| GitHub Actions | **Configured, not executed**: local workflow changes are unpublished; workflow OAuth scope blocked under #29 | [workflow](../.github/workflows/protocol-tests.yml) |
+| Strict Swift formatting / patch checks | Passed for changed Swift files and `git diff --check` | [checks](Evidence/ticket-24-checks.txt) |
+| Production API / live trades | No requests made | Sandbox-only verification policy |
 
-Reproduce macOS tests with `swift test` and simulator tests with
-`bash Scripts/test-ios.sh`. On this machine, use
-`env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` to select
-full Xcode. The default Command Line Tools installation could not discover
-Testing macros; the native build system also lacked the Testing module. Those
-setup failures are not counted as functional red tests or passing checks.
+The Swift Testing terminal summary counts the skipped declaration in “272 tests.”
+The iOS result summary separates 271 passed + 1 skipped and also reports expanded
+parameter cases. Counts are not 272 passing tests. Initial local compilation and
+format warnings in the new TLS/example test sources were corrected; final suites
+and lint passed. There was no functional production bug or red-green source fix
+in #24. Added integration tests passed when introduced; these are regression
+qualification checks, not invented red evidence.
 
-The loopback tests start a real HTTP TCP listener inside the test process on a
-random localhost port, and use the default URLSession transport. They run without
-Python, credentials, internet access, a shared server, or market hours on each
-platform. They verify the real request headers/path and typed response, plus
-redirect refusal, configurable timeout and cancellation after receipt.
+## Reproduce on Apple
 
-Public seam tests additionally verify session isolation/replacement, one attempt
-on transport failure and rate limiting, unfamiliar error types, malformed and
-extended responses, open server enums, local validation, repeated query/form/JSON
-encoding, confirmed rejection versus uncertain mutation outcomes. Controlled
-mutation routes are fixtures; no actual trading endpoint is exercised.
+Run from the repository root with full Xcode selected (Fish-compatible commands):
 
-## Red-green evidence
+```fish
+env TZ=Pacific/Honolulu DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/test-ios.sh
+python3 Scripts/audit-snapshot.py
+python3 Scripts/check-documentation-examples.py
+node --test Documentation/Publisher.test.cjs
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift format lint --strict Package.swift Tests/KiteConnectTests/CrossChannelIntegrationTests.swift Tests/KiteConnectTests/LocalTLSTests.swift Tests/KiteConnectTests/DocumentationExamples.swift
+git diff --check
+```
 
-The pre-agreed seams are `KiteClient` public operations against injected
-`KiteHTTPTransport`, and the default adapter against controlled real HTTP. No
-private helpers or actor internals are tested. Tests use Swift Testing.
+The optional public read can be run separately, never as a substitute for
+credentialed qualification:
 
-1. Profile tracer test was written before the public client/module, but initial
-   runs were blocked by the toolchain discovery issues above. This is not claimed
-   as a verified functional red. The full-Xcode run passed after implementation.
-2. `knownAndUnknownServerValuesRemainTyped` failed to compile against string
-   arrays (`String` has no member `unknown`/`nse`/`cnc`). Added shared public open
-   enums for exchanges, products and order types; the test then passed.
-3. `malformedErrorEnvelopeRetainsAvailableKiteDetails` failed with
-   `error.errorType → nil`, expected `FutureException`, when the message field was
-   missing. Made error-envelope message optional to retain available details;
-   the same public profile test passed, with HTTP message fallback.
-4. `unrelatedTransportErrorCodeIsNotCancellation` failed because a non-URL error
-   with code -999 became `CancellationError`. Restricted URL cancellation mapping
-   to `NSURLErrorDomain`; the test passed while actual cancellation tests stayed
-   green.
+```fish
+env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer KITE_SANDBOX_INSTRUMENT_SMOKE=1 swift test --filter instrumentsPublicSandboxSmoke
+```
 
-5. `typedSessionCredentialsConstructAnIsolatedClient` failed to compile before
-   `KiteSessionCredentials` and the session initializer existed. Added the shared
-   immutable credential contract and delegating client initializer; it passed.
+Final local iOS bundle: `.test-results/iOS.UPjRhZ/Results.xcresult` (uncommitted).
+The durable JSON above is extracted with
+`xcrun xcresulttool get test-results summary --path <bundle> --format json`.
+Full transient logs: `/tmp/ticket24-final-macos.log`, `/tmp/ticket24-final-ios.log`.
+The committed log/summary are the portable evidence; temporary bundles are not CI
+artifacts. The prior #24 iOS run also passed before cleanup of compiler warnings;
+the final bundle is the one reported here.
 
-[Captured excerpts](Evidence/ticket-4-tests.txt) preserve the functional failures
-and final results. Full local logs are `/tmp/spec4-red2.log`,
-`/tmp/spec4-red3.log`, `/tmp/spec4-red4.log`, `/tmp/spec4-red5.log`, `/tmp/spec4-final-macos.log` and
-`/tmp/spec4-final19-ios.log`. The final simulator result bundle is
-`/tmp/spec4-final19-ios.xcresult`; these temporary paths are local execution
-artifacts, not portable CI results. Workflow artifacts will provide hosted
-execution evidence once the branch is integrated/pushed and checks run.
+## Reproduce on an existing Ubuntu 24.04 runtime
 
-CI intentionally fails if a runner lacks Swift 6.4/Xcode rather than silently
-downgrading the package. Actual Ubuntu HTTP success remains a qualification gap
-until its configured job passes. Successful simulated protocol calls cannot
-substitute for that evidence, authenticated sandbox success, or WebSocket tests.
+With Swift 6.4, Python 3 and Node installed, run:
+
+```fish
+bash Scripts/test-ubuntu.sh
+```
+
+[The script](../Scripts/test-ubuntu.sh) checks the real OS/compiler, validates
+snapshot and documentation mappings, runs Publisher checks, then the complete
+`swift test` suite including actual loopback HTTP/WebSocket/TLS rejection.
+It provisions nothing. `bash Scripts/test-websocket-transport.sh` remains a
+focused WebSocket diagnostic, not the full matrix. The CI Ubuntu job invokes the
+full script and is configured to upload its log even on failure. Toolchain setup
+failure is a failed/blocked job, never a downgraded or fabricated Swift 6.4 pass.
+
+Docker, Podman, Colima/Lima, Tart, Multipass, QEMU and Orb executables were absent;
+`swift sdk list` was empty. No known existing Linux runtime was available to run.
+No expensive infrastructure was installed. Even a cross-compilation SDK would not
+supply actual Linux network execution. The NIO/WebSocketKit transport therefore
+remains an explicit provisional choice. Before Linux is advertised as qualified,
+run the real Ubuntu suite, retain its OS/compiler/network evidence, investigate
+failures and add successful verified TLS transport evidence. Apple loopback or
+fixture success cannot establish that compatibility.
+
+## Remote residuals — #27
+
+Keep these under [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27),
+without a production fallback:
+
+- Login/exchange/logout, approved refresh permissions and authenticated profile/margins.
+- Authenticated quotes/OHLC/LTP and historical data. Prior quote probes were
+  Cloudflare-blocked, not verified endpoint behavior. Public equity CSV succeeded;
+  it qualifies neither authenticated quote reads nor MF CSV.
+- Order list/history/trades and sandbox LIMIT place/modify/cancel/reconciliation;
+  no authenticated order or portfolio mutation was submitted for #24.
+- Portfolio holdings/auctions/positions/conversion and authorisation browser completion.
+- Simple/ATO alert lifecycle, triggers and any resulting order behavior.
+- All five MF reads including authenticated CSV; sandbox docs do not prove availability.
+- Real sandbox WSS authentication, binary/text events, recovery and session replacement;
+  actual HTTP postback delivery and application deduplication/reconciliation.
+- GTT, margin/basket/charge calculations and MARKET orders: explicitly unavailable
+  in sandbox. They remain controlled protocol implementations, not remote-qualified
+  capabilities. Do not use production to close those cases.
+- Publisher and depository browser flows: documented origin has no specified sandbox
+  counterpart; no remote navigation/completion was validated.
+
+Fixture requests assert wire contracts, modeled values and error/lifecycle policy;
+they do not demonstrate broker/exchange acceptance or account availability.
+
+## Publication residual — #29
+
+[#29](https://github.com/ankitgoyalio/swiftkiteconnect/issues/29) tracks the workflow
+OAuth scope block. The workflow is committed locally, not published or executed by
+this task. Root owns any push/PR/ticket lifecycle and final review. No push, PR,
+release tag, issue close or 1.0 declaration is part of this qualification work.
