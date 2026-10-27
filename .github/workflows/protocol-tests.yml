@@ -81,6 +81,9 @@ jobs:
       - name: macOS public protocol and real loopback HTTP tests
         timeout-minutes: 15
         run: swift test
+      - name: Constrained-executor HTTP regression
+        timeout-minutes: 3
+        run: env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10
       - name: iOS Simulator public protocol and real loopback HTTP tests
         timeout-minutes: 25
         run: bash Scripts/test-ios.sh
