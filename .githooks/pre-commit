@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Limit staged, authored files to 5,000 estimated tokens (bytes / 4)."""
+"""Check staged authored file sizes and Swift formatting without changing files."""
 
 import os
 import subprocess
 import sys
+
+from check_swift_format import check_swift_format
 
 MAX_BYTES = 5_000 * 4
 
@@ -59,7 +61,7 @@ def main():
         if size > MAX_BYTES:
             oversized.append((path, size))
     if not oversized:
-        return 0
+        return check_swift_format(authored)
 
     print(
         "Commit blocked: staged authored files exceed 5,000 tokens "
@@ -92,5 +94,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
-        print(f"Token-limit hook failed: {error}", file=sys.stderr)
+        print(f"Pre-commit hook failed: {error}", file=sys.stderr)
         sys.exit(1)

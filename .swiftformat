@@ -1,0 +1,16 @@
+# Use SwiftFormat 0.64.3 (see docs/development.md).
+--min-version 0.64.3
+--swift-version 6.4
+--indent 4
+--allman false
+--commas always
+--self remove
+--header "//\n//  {file}\n//  swiftkiteconnect\n//\n//  Created by {author.name} on {created}."
+--date-format dmy
+--timezone utc
+--exclude .build,.scratch,Packages,Vendor,vendor,**/Generated/**,**/generated/**,**/*.generated.swift,**/*.g.swift
+--blank-line-after-switch-case "always"
+--line-between-guards "true"
+--boolean-guards-in-tests "convert"
+--guard-like-if-statements "convert"
+--property-types "inferred"
