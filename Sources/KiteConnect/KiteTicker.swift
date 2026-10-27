@@ -334,13 +334,13 @@ public actor KiteTicker {
           lastTradedQuantity: word(offset + 8), averageTradedPrice: price(12),
           volumeTraded: word(offset + 16), totalBuyQuantity: word(offset + 20),
           totalSellQuantity: word(offset + 24),
-          ohlc: KiteTickOHLC(open: price(28), high: price(32), low: price(36), close: price(40)))
+          ohlc: KiteOHLC(open: price(28), high: price(32), low: price(36), close: price(40)))
         details = .quote(quote)
         if length == 184 {
           let levels = stride(from: 64, to: 184, by: 12).map { field in
-            KiteDepthEntry(
-              quantity: word(offset + field), price: price(field + 4),
-              orders: UInt16(short(offset + field + 8)))
+            KiteDepthLevel(
+              price: price(field + 4), quantity: Int64(word(offset + field)),
+              orders: Int64(short(offset + field + 8)))
           }
           details = .full(
             KiteFullFields(
@@ -354,7 +354,7 @@ public actor KiteTicker {
       }
       if length == 28 || length == 32 {
         let index = KiteIndexFields(
-          ohlc: KiteTickOHLC(open: price(16), high: price(8), low: price(12), close: price(20)),
+          ohlc: KiteOHLC(open: price(16), high: price(8), low: price(12), close: price(20)),
           priceChange: Decimal(Int32(bitPattern: word(offset + 24))) / Decimal(divisor))
         details = .indexQuote(index)
         if length == 32 {
