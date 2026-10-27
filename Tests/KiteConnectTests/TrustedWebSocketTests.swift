@@ -97,3 +97,31 @@ private func fixtureData(_ name: String) throws -> Data {
     let url = try #require(Bundle.module.url(forResource: name, withExtension: "pem", subdirectory: "Fixtures"))
     return try Data(contentsOf: url)
 }
+
+/// Initializer failures can finish before a Happy Eyeballs bootstrap settles.
+/// Every public connect failure must drain that work before its event loop exits.
+@Test(.timeLimit(.minutes(1)))
+func `concurrent TLS initializer failures drain bootstrap work`() async throws {
+    let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
+    let server = try await ServerBootstrap(group: group).bind(host: "127.0.0.1", port: 0).get()
+    do {
+        let port = try #require(server.localAddress?.port)
+        let url = try #require(URL(string: "wss://localhost:\(port)/"))
+        await withTaskGroup(of: Void.self) { tasks in
+            for _ in 0 ..< 64 {
+                tasks.addTask {
+                    await #expect(throws: KiteTickerError.self) {
+                        _ = try await NIOKiteWebSocketTransport(connectTimeout: 2,
+                                                                trustRootsPEM: Data("invalid".utf8)).connect(url: url)
+                    }
+                }
+            }
+        }
+        try await server.close().get()
+        try await group.shutdownGracefully()
+    } catch {
+        try? await server.close().get()
+        try? await group.shutdownGracefully()
+        throw error
+    }
+}

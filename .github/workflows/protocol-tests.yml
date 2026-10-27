@@ -15,7 +15,26 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+      - name: Check preinstalled Swift 6.4
+        id: swift
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v swift >/dev/null && swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'; then
+            echo 'installed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'installed=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import official Swift signing keys for installer
+        if: steps.swift.outputs.installed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --compressed --fail --silent --show-error --location --retry 3 \
+            https://www.swift.org/keys/all-keys.asc -o "$RUNNER_TEMP/swift-signing-keys.asc"
+          gpg --batch --import "$RUNNER_TEMP/swift-signing-keys.asc"
       - uses: swift-actions/setup-swift@v3
+        if: steps.swift.outputs.installed != 'true'
         with:
           swift-version: '6.4.0'
       - name: Record compiler and OS

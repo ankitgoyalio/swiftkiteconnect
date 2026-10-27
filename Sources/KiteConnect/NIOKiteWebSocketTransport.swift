@@ -41,12 +41,18 @@ public struct NIOKiteWebSocketTransport: KiteWebSocketTransport {
         }
         try Task.checkCancellation()
         let connection = NIOKiteConnection(capacity: incomingBufferCapacity, trustRootsPEM: trustRootsPEM)
-        let socket = try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { continuation in
-                connection.start(parts: parts, timeout: connectTimeout, continuation: continuation)
+        let socket: any KiteWebSocketConnection
+        do {
+            socket = try await withTaskCancellationHandler {
+                try await withCheckedThrowingContinuation { continuation in
+                    connection.start(parts: parts, timeout: connectTimeout, continuation: continuation)
+                }
+            } onCancel: {
+                connection.stop(CancellationError())
             }
-        } onCancel: {
-            connection.stop(CancellationError())
+        } catch {
+            await connection.close()
+            throw error
         }
         if Task.isCancelled {
             await socket.close()
@@ -62,7 +68,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
     private let group = MultiThreadedEventLoopGroup(numberOfThreads: 1)
     private struct State {
         var socket: WebSocket?
-        var channel: any Channel?
+        var channels: [any Channel] = []
         var pending: CheckedContinuation<any KiteWebSocketConnection, any Error>?
         var stopped = false
         var shutdown: Task<Void, Never>?
@@ -70,8 +76,11 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
 
     private let state = Mutex(State())
     private let trustRootsPEM: Data?
+    private let bootstrapCompletion: AsyncStream<Void>
+    private let bootstrapFinished: AsyncStream<Void>.Continuation
     init(capacity: Int, trustRootsPEM: Data?) {
         self.trustRootsPEM = trustRootsPEM
+        (bootstrapCompletion, bootstrapFinished) = AsyncStream.makeStream()
         (messages, incoming) = AsyncThrowingStream.makeStream(
             bufferingPolicy: .bufferingOldest(capacity),
         )
@@ -87,6 +96,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
             return true
         }
         guard active else {
+            bootstrapFinished.finish()
             continuation.resume(throwing: CancellationError())
             return
         }
@@ -100,7 +110,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
             .channelInitializer { [self] channel in
                 let active = state.withLock { state in
                     guard !state.stopped else { return false }
-                    state.channel = channel
+                    state.channels.append(channel)
                     return true
                 }
                 guard active else { return channel.close() }
@@ -125,11 +135,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
                         parts: parts, fail: { [weak self] error in self?.stop(error) },
                         activated: { [weak self] channel in
                             guard let self else { return }
-                            let active = state.withLock { state in
-                                guard !state.stopped else { return false }
-                                state.channel = channel
-                                return true
-                            }
+                            let active = state.withLock { !$0.stopped }
                             guard active else { channel.close(promise: nil); return }
                             // A failed DNS candidate is not the end of the connection attempt.
                             // Observe close only after TCP connects, allowing address fallback.
@@ -178,8 +184,12 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
                     return channel.eventLoop.makeSucceededVoidFuture()
                 } catch { return channel.eventLoop.makeFailedFuture(error) }
             }.connect(host: host, port: parts.port ?? (parts.scheme == "wss" ? 443 : 80))
-            .whenFailure { [weak self] _ in
-                self?.stop(KiteTickerError.transport("WebSocket connection failed"))
+            .whenComplete { [self] result in
+                if case .failure = result {
+                    stop(KiteTickerError.transport("WebSocket connection failed"))
+                }
+                // Includes address-fallback and initializer cleanup, even after cancellation.
+                bootstrapFinished.finish()
             }
     }
 
@@ -220,22 +230,29 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
     func stop(_ error: any Error?) {
         let actions = state.withLock {
             state -> (
-                CheckedContinuation<any KiteWebSocketConnection, any Error>?, WebSocket?, any Channel?,
+                CheckedContinuation<any KiteWebSocketConnection, any Error>?, WebSocket?, [any Channel],
             )? in
             guard !state.stopped else { return nil }
             state.stopped = true
-            let actions = (state.pending, state.socket, state.channel)
+            let channels = state.channels
+            let actions = (state.pending, state.socket, channels)
             state.pending = nil
             state.socket = nil
-            state.channel = nil
-            state.shutdown = Task { [group] in
+            state.channels = []
+            state.shutdown = Task { [group, bootstrapCompletion] in
+                // Closing a channel can precede completion of ClientBootstrap's promises.
+                // Drain the complete attempt and every candidate before retiring its loops.
+                for await _ in bootstrapCompletion {}
+                for channel in channels {
+                    try? await channel.closeFuture.get()
+                }
                 await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
                     group.shutdownGracefully { _ in done.resume() }
                 }
             }
             return actions
         }
-        guard let (pending, socket, channel) = actions else { return }
+        guard let (pending, socket, channels) = actions else { return }
         if let error {
             incoming.finish(throwing: error)
         } else {
@@ -244,7 +261,9 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
         pending?.resume(throwing: error ?? CancellationError())
         // Channel close callbacks may execute synchronously. Never invoke them under the mutex.
         socket?.close(promise: nil)
-        channel?.close(promise: nil)
+        for channel in channels {
+            channel.close(promise: nil)
+        }
     }
 }
 

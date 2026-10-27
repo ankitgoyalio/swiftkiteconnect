@@ -7,7 +7,7 @@ login/homepage requests returned 504 while the user observed 502; that is an
 availability blocker, not proof that the service has not launched. No production
 fallback is authorized.
 
-Current local source (trusted TLS/fallback qualification changes) passes 276 tests
+Current local source (trusted TLS/fallback qualification changes) passes 277 tests
 on each of macOS and iOS Simulator, with two opt-in sandbox tests skipped per target. Trusted local WSS now verifies a CA-signed DNS leaf, transmits LTP
 through the public ticker, rejects a hostname mismatch and untrusted/malformed
 roots, and accepts correctly certified IPv4 and IPv6 literal addresses. No OS trust-store changes or
