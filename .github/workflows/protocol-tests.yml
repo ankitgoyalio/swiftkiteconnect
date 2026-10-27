@@ -1,0 +1,52 @@
+name: Protocol tests
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: '6.4.0'
+      - name: Record compiler and OS
+        run: |
+          swift --version
+          cat /etc/os-release
+      - name: Public protocol and real loopback HTTP tests
+        run: swift test
+  apple:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - name: Select installed Swift 6.4 Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          for app in /Applications/Xcode*.app; do
+            if DEVELOPER_DIR="$app/Contents/Developer" xcrun swift --version | grep -q 'Swift version 6.4'; then
+              echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
+              exit 0
+            fi
+          done
+          echo 'Swift 6.4 Xcode is required; this runner image has no matching installation.' >&2
+          exit 1
+      - name: Record compiler and Xcode
+        run: |
+          swift --version
+          xcodebuild -version
+      - name: macOS public protocol and real loopback HTTP tests
+        run: swift test
+      - name: iOS Simulator public protocol and real loopback HTTP tests
+        run: bash Scripts/test-ios.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: ignore

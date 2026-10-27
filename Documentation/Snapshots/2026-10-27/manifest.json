@@ -1,0 +1,107 @@
+{
+  "captured_date": "2026-10-27",
+  "sources": [
+    {
+      "url": "https://kite.trade/docs/connect/v3/",
+      "file": "index.html",
+      "sha256": "19cf5170c5be1849ef50007c9cf30d87132536c82000b2b505dade5736e3502b",
+      "bytes": 17835
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/user/",
+      "file": "user.html",
+      "sha256": "22b5d28cd9f0c9e0002d0c850aecb02ba0effdcfeaea0fe6c5b5d9cfc13e8083",
+      "bytes": 50797
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/response-structure/",
+      "file": "response-structure.html",
+      "sha256": "19a14cd556fda65563ce0746e7108cbd415adc5bcd572c5020320e09f3bee7d6",
+      "bytes": 17072
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/exceptions/",
+      "file": "exceptions.html",
+      "sha256": "b75a8d13b0cc95c89157c1ed6481e7cd05d905481a5056b1c334b6adae685607",
+      "bytes": 18871
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/orders/",
+      "file": "orders.html",
+      "sha256": "96cfb95755e7fc480b27076206e2c1d246ff3acfa261e5bb2c2a9360f197f54c",
+      "bytes": 171045
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/gtt/",
+      "file": "gtt.html",
+      "sha256": "8ccebdbbbbb0cd88e364c2b44155a875e159611a957a9f2ef6af11deb5cb26ee",
+      "bytes": 62512
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/alerts/",
+      "file": "alerts.html",
+      "sha256": "f02c4c72d32743284e17983604ca8c62ea4c1158c16d29e909c038f1b63f291d",
+      "bytes": 74306
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/portfolio/",
+      "file": "portfolio.html",
+      "sha256": "09720bfa238985f0c6ba12db7bc6b63b94b356091969e482f2bd21a14dc77141",
+      "bytes": 96034
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/market-quotes/",
+      "file": "market-quotes.html",
+      "sha256": "63c947c4c6c1f32fe64c2bca1e127efa10d864b74bbcad86b4298d3a3282a453",
+      "bytes": 46129
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/historical/",
+      "file": "historical.html",
+      "sha256": "7a4a5028f7036ad04ea56c991e81a8b8a17738524342bfa27c43d7079f69689e",
+      "bytes": 30286
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/mutual-funds/",
+      "file": "mutual-funds.html",
+      "sha256": "7e155cd770bc91701500a12b19e610861cbd684edc4c13326f003511f3ab5794",
+      "bytes": 80864
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/margins/",
+      "file": "margins.html",
+      "sha256": "fc33141ac4bfb66e474e96f7f2a36154a15682d1dd1f0a28160bac219cdb1dbc",
+      "bytes": 73248
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/websocket/",
+      "file": "websocket.html",
+      "sha256": "d9bbadbbb9fc58c8e54fd2d9e853ccbd79f73e98cdfce7c3122a86c309349807",
+      "bytes": 32818
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/postbacks/",
+      "file": "postbacks.html",
+      "sha256": "2a007d271f506e19b4ec01d87e24246040ef9b07ddc83c1cca54b143c8cf43f3",
+      "bytes": 26381
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/basket/",
+      "file": "basket.html",
+      "sha256": "dc416cbfa16b880a4e31c09bd76fac53dab625bbc305d2f9e0a2d3f948eefe9e",
+      "bytes": 25556
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/publisher/",
+      "file": "publisher.html",
+      "sha256": "55253ee82beeb63cbdd6b8c3e6e2cc89f57b4ee3233e0f83d5ccc616203ddc8f",
+      "bytes": 35412
+    },
+    {
+      "url": "https://kite.trade/docs/connect/v3/sandbox/",
+      "file": "sandbox.html",
+      "sha256": "e2fc5f1ecd232bce479384b1df4655cd220e1461d6ac3fee4d724e3eb673878f",
+      "bytes": 44733
+    }
+  ]
+}
