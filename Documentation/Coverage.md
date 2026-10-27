@@ -97,7 +97,7 @@ SDK policy choices are distinguished from server guarantees.
 | WebSocket: handshake params, three connections/key, 3000 tokens/connection, subscribe/unsubscribe/modes | `TickerTests`, `TickerBinaryTests`: public commands, sandbox `user_id`, limits and one explicit connection owner | Usage; app allocates separate tickers; no pool; real sandbox stream unverified #27 |
 | WebSocket: binary count/length framing, heartbeat, LTP/quote/full/index, 5+5 depth, scaling and epoch time | `TickerBinaryTests`, `TickerTests`: independent literal packet layouts, multipackets, malformed/truncated frames, signed index change, Decimal prices and currency/segment divisors | Usage; supplementary segment divisors are official-SDK references, not a broader prose completeness claim |
 | WebSocket: text order/error/message and forward compatibility | `TickerTextTests`: shared order model, typed broker events, unknown JSON, malformed data and required fields | Usage; authentication-string recognition is narrow SDK policy, not a documented typed auth schema |
-| Spec streaming policy: recovery, gaps, auth stop, session fencing, desired-state restore, bounded independent subscribers | `TickerRecoveryTests`: controlled time/handshake/write gates; all five packet layouts plus text after recovery; `TickerTextTests`: quote/order overflow and cancellation isolation | Usage; no replay; app reconciles; adapter ingress overflow is a connection-level failure; Linux adapter remains provisional |
+| Spec streaming policy: recovery, gaps, auth stop, session fencing, desired-state restore, bounded independent subscribers | `TickerRecoveryTests`: controlled time/handshake/write/physical-close gates; all five packet layouts plus text after recovery; `TickerTextTests`: quote/order overflow and cancellation isolation | Usage; no replay; app reconciles; adapter ingress overflow is a connection-level failure; Linux adapter remains provisional |
 | Postback: raw JSON, checksum, notifications vs execution, app scope vs user-wide WebSocket | `PostbacksTests`: known SHA-256, original UTF-8 timestamp, invalid/tampered input; `CrossChannelIntegrationTests`: REST/WS/postback agreement with unknown status, precise money and configured time | Usage; backend owns server, routing, deduplication/replay handling; checksum binds ID/timestamp, not every field; actual delivery unverified #27 |
 | Offsite basket: user browser form POST, optional session, readonly, order parameters | `Publisher.md`, `Publisher.test.cjs`: preparation/callback checks, no network | Offsite callback terminology conflicts with canonical login; guide records it; no production fallback or remote browser completion #27 |
 | Publisher: ready/static/custom/dynamic buttons, add/render/link, options/redirect, callbacks and authorisation | `Publisher.md`, offline JS tests: ten-entry limit, app ownership, callback validation | iOS WebView cookie restriction; prefer offsite; JS tag max eight differs from offsite max twenty; no Swift plugin implementation |
@@ -118,7 +118,9 @@ endpoints or remote-qualified features.
 No missing typed snapshot route was found in this audit. Concrete corrections in
 #24 are the stale release docs, executable usage coverage, a cross-channel
 integration test, explicit TLS trust-failure coverage and reproducible audit checks.
-No production behavior bug or production-source fix is claimed. Routine fixtures
+No production behavior bug was found during the initial #24 audit. The subsequent
+[final review](Review.md) found and fixed physical WebSocket teardown admission and
+invalid GTT receipt decoding, plus two internal duplication findings. Routine fixtures
 cannot resolve Ubuntu execution, broker/account eligibility, browser completion or
 authenticated sandbox evidence. **#24 acceptance remains incomplete while Linux
 qualification is missing**, and the package must remain partial 0.x.

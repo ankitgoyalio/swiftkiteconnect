@@ -74,68 +74,31 @@ extension KiteClient {
 }
 
 private func parseMutualFundInstruments(_ data: Data) throws -> [KiteMutualFundInstrument] {
-  let rows = try KiteCSV.records(data)
-  guard let rawHeader = rows.first else { throw KiteCSV.Failure("Missing MF CSV header") }
-  let header = rawHeader.map { $0.trimmingCharacters(in: .whitespaces) }
-  guard Set(header).count == header.count, !header.contains("") else {
-    throw KiteCSV.Failure("Duplicate or empty MF CSV column")
-  }
   let required = [
     "tradingsymbol", "amc", "name", "purchase_allowed", "redemption_allowed",
     "minimum_purchase_amount", "purchase_amount_multiplier", "minimum_additional_purchase_amount",
     "minimum_redemption_quantity", "redemption_quantity_multiplier", "dividend_type", "scheme_type",
     "plan", "settlement_type", "last_price", "last_price_date",
   ]
-  for key in required where !header.contains(key) { throw KiteCSV.Failure("Missing column \(key)") }
-  let indices = Dictionary(
-    uniqueKeysWithValues: header.enumerated().map { ($0.element, $0.offset) })
-  return try rows.dropFirst().enumerated().map { offset, row in
-    try Task.checkCancellation()
-    guard row.count == header.count else {
-      throw KiteCSV.Failure("Wrong MF field count in record \(offset + 2)")
-    }
-    func value(_ key: String) -> String { row[indices[key]!] }
-    func failure(_ key: String) -> KiteCSV.Failure {
-      KiteCSV.Failure("Invalid \(key) in MF record \(offset + 2)")
-    }
-    func nonempty(_ key: String) throws -> String {
-      let raw = value(key)
-      guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw failure(key) }
-      return raw
-    }
-    func boolean(_ key: String) throws -> Bool {
-      guard ["0", "1"].contains(value(key)) else { throw failure(key) }
-      return value(key) == "1"
-    }
-    func decimal(_ key: String) throws -> Decimal {
-      let raw = value(key)
-      let mantissa = raw.split(whereSeparator: { $0 == "e" || $0 == "E" }).first ?? ""
-      let significant = mantissa.utf8.filter { (48...57).contains($0) }
-        .drop(while: { $0 == 48 }).reversed().drop(while: { $0 == 48 })
-      guard significant.count <= 38,
-        raw.range(
-          of: #"^[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression)
-          != nil,
-        let result = Decimal(string: raw, locale: Locale(identifier: "en_US_POSIX")), !result.isNaN
-      else { throw failure(key) }
-      return result
-    }
+  let table = try KiteCSV.Table(data, required: required)
+  return try table.rows.enumerated().map { offset, values in
+    let row = try table.row(values, record: offset + 2)
     return try KiteMutualFundInstrument(
-      tradingSymbol: nonempty("tradingsymbol"),
-      amc: nonempty("amc"),
-      name: nonempty("name"),
-      purchaseAllowed: boolean("purchase_allowed"),
-      redemptionAllowed: boolean("redemption_allowed"),
-      minimumPurchaseAmount: decimal("minimum_purchase_amount"),
-      purchaseAmountMultiplier: decimal("purchase_amount_multiplier"),
-      minimumAdditionalPurchaseAmount: decimal("minimum_additional_purchase_amount"),
-      minimumRedemptionQuantity: decimal("minimum_redemption_quantity"),
-      redemptionQuantityMultiplier: decimal("redemption_quantity_multiplier"),
-      dividendType: KiteMutualFundDividendType(rawValue: nonempty("dividend_type")),
-      schemeType: KiteMutualFundSchemeType(rawValue: nonempty("scheme_type")),
-      plan: KiteMutualFundPlan(rawValue: nonempty("plan")),
-      settlementType: nonempty("settlement_type"),
-      lastPrice: decimal("last_price"),
-      lastPriceDate: KiteDateOnly(value("last_price_date")))
+      tradingSymbol: row.nonempty("tradingsymbol"),
+      amc: row.nonempty("amc"),
+      name: row.nonempty("name"),
+      purchaseAllowed: row.boolean("purchase_allowed"),
+      redemptionAllowed: row.boolean("redemption_allowed"),
+      minimumPurchaseAmount: row.decimal("minimum_purchase_amount"),
+      purchaseAmountMultiplier: row.decimal("purchase_amount_multiplier"),
+      minimumAdditionalPurchaseAmount: row.decimal("minimum_additional_purchase_amount"),
+      minimumRedemptionQuantity: row.decimal("minimum_redemption_quantity"),
+      redemptionQuantityMultiplier: row.decimal("redemption_quantity_multiplier"),
+      dividendType: KiteMutualFundDividendType(rawValue: row.nonempty("dividend_type")),
+      schemeType: KiteMutualFundSchemeType(rawValue: row.nonempty("scheme_type")),
+      plan: KiteMutualFundPlan(rawValue: row.nonempty("plan")),
+      settlementType: row.nonempty("settlement_type"),
+      lastPrice: row.decimal("last_price"),
+      lastPriceDate: KiteDateOnly(row.value("last_price_date")))
   }
 }

@@ -49,75 +49,32 @@ extension KiteClient {
 }
 
 private func parseInstruments(_ data: Data) throws -> [KiteInstrument] {
-  let rows = try KiteCSV.records(data)
-  guard let rawHeader = rows.first else { throw KiteCSV.Failure("Missing CSV header") }
-  let header = rawHeader.map { $0.trimmingCharacters(in: .whitespaces) }
-  guard Set(header).count == header.count, !header.contains("") else {
-    throw KiteCSV.Failure("Duplicate or empty CSV column")
-  }
   let required = [
     "instrument_token", "exchange_token", "tradingsymbol", "name", "last_price", "expiry", "strike",
     "tick_size", "lot_size", "instrument_type", "segment", "exchange",
   ]
-  for key in required where !header.contains(key) { throw KiteCSV.Failure("Missing column \(key)") }
-  let indices = Dictionary(
-    uniqueKeysWithValues: header.enumerated().map { ($0.element, $0.offset) })
-  return try rows.dropFirst().enumerated().map { offset, row in
-    try Task.checkCancellation()
-    let record = offset + 2
-    guard row.count == header.count else {
-      throw KiteCSV.Failure("Wrong field count in CSV record \(record)")
-    }
-    func value(_ key: String) -> String { row[indices[key]!] }
-    func failure(_ key: String) -> KiteCSV.Failure {
-      KiteCSV.Failure("Invalid \(key) in CSV record \(record)")
-    }
-    func nonempty(_ key: String) throws -> String {
-      let result = value(key)
-      guard !result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        throw failure(key)
-      }
-      return result
-    }
-    func integer<T>(_ key: String, _ parse: (String) -> T?) throws -> T {
-      let raw = value(key)
-      guard !raw.isEmpty, raw.utf8.allSatisfy({ (48...57).contains($0) }), let result = parse(raw)
-      else { throw failure(key) }
-      return result
-    }
-    func decimal(_ key: String) throws -> Decimal {
-      let raw = value(key)
-      let mantissa = raw.split(whereSeparator: { $0 == "e" || $0 == "E" }).first ?? ""
-      let digits = mantissa.utf8.filter { (48...57).contains($0) }
-      let significant = digits.drop(while: { $0 == 48 }).reversed().drop(while: { $0 == 48 })
-      // Decimal guarantees 38 significant decimal digits. Reject rather than silently round.
-      guard significant.count <= 38,
-        raw.range(
-          of: #"^[+-]?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression)
-          != nil,
-        let result = Decimal(string: raw, locale: Locale(identifier: "en_US_POSIX")), !result.isNaN
-      else { throw failure(key) }
-      return result
-    }
+  let table = try KiteCSV.Table(data, required: required)
+  return try table.rows.enumerated().map { offset, values in
+    let row = try table.row(values, record: offset + 2)
     let identity: KiteInstrumentIdentity
     do {
       identity = try KiteInstrumentIdentity(
-        exchange: KiteExchange(rawValue: nonempty("exchange")),
-        tradingSymbol: nonempty("tradingsymbol"))
-    } catch { throw failure("exchange/tradingsymbol") }
+        exchange: KiteExchange(rawValue: row.nonempty("exchange")),
+        tradingSymbol: row.nonempty("tradingsymbol"))
+    } catch { throw row.failure("exchange/tradingsymbol") }
     let expiry: KiteDateOnly?
-    do { expiry = try value("expiry").nilIfEmpty.map { try KiteDateOnly($0) } } catch {
-      throw failure("expiry")
+    do { expiry = try row.value("expiry").nilIfEmpty.map { try KiteDateOnly($0) } } catch {
+      throw row.failure("expiry")
     }
     return try KiteInstrument(
-      instrumentToken: integer("instrument_token", UInt32.init),
-      exchangeToken: integer("exchange_token", UInt32.init),
-      identity: identity, name: value("name").nilIfEmpty,
-      lastPrice: decimal("last_price"), expiry: expiry,
-      strike: value("strike").isEmpty ? nil : decimal("strike"),
-      tickSize: decimal("tick_size"), lotSize: integer("lot_size", Int64.init),
-      instrumentType: KiteInstrumentType(rawValue: nonempty("instrument_type")),
-      segment: nonempty("segment"))
+      instrumentToken: row.integer("instrument_token", UInt32.init),
+      exchangeToken: row.integer("exchange_token", UInt32.init),
+      identity: identity, name: row.value("name").nilIfEmpty,
+      lastPrice: row.decimal("last_price"), expiry: expiry,
+      strike: row.value("strike").isEmpty ? nil : row.decimal("strike"),
+      tickSize: row.decimal("tick_size"), lotSize: row.integer("lot_size", Int64.init),
+      instrumentType: KiteInstrumentType(rawValue: row.nonempty("instrument_type")),
+      segment: row.nonempty("segment"))
   }
 }
 extension String { fileprivate var nilIfEmpty: String? { isEmpty ? nil : self } }
