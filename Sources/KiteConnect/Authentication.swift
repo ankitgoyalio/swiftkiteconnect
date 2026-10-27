@@ -57,19 +57,7 @@ extension KiteClient {
     guard wire.apiKey == apiKey else {
       throw KiteError.decoding(statusCode: 200, message: "Session API key does not match client")
     }
-    let formatter = DateFormatter()
-    formatter.locale = Locale(identifier: "en_US_POSIX")
-    formatter.calendar = Calendar(identifier: .gregorian)
-    formatter.timeZone = configuration.tradingTimeZone
-    formatter.isLenient = false
-    formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-    let iso = ISO8601DateFormatter()
-    iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-    let offsetTimestamp = wire.loginTime.replacingOccurrences(of: " ", with: "T")
-    let loginTime =
-      iso.date(from: offsetTimestamp)
-      ?? ISO8601DateFormatter().date(from: offsetTimestamp)
-      ?? formatter.date(from: wire.loginTime)
+    let loginTime = KiteTimestamp.parse(wire.loginTime, timeZone: configuration.tradingTimeZone)
     guard let loginTime else {
       throw KiteError.decoding(statusCode: 200, message: "Invalid session login_time")
     }

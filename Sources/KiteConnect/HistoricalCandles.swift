@@ -73,7 +73,7 @@ extension KiteClient {
           throw HistoricalFailure("Missing requested open interest")
         }
         guard
-          let timestamp = historicalTimestamp(
+          let timestamp = KiteTimestamp.parse(
             row.timestamp, timeZone: configuration.tradingTimeZone)
         else { throw HistoricalFailure("Invalid candle timestamp") }
         return KiteHistoricalCandle(
@@ -117,49 +117,4 @@ private struct HistoricalRow: Decodable {
       throw HistoricalFailure("Expected six or seven candle fields with nonnegative volume and OI")
     }
   }
-}
-
-// Scoped until the quote ticket's shared timestamp helper can be consolidated at integration.
-private func historicalTimestamp(_ value: String, timeZone: TimeZone) -> Date? {
-  guard
-    value.range(
-      of:
-        #"^[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:?[0-9]{2})?$"#,
-      options: .regularExpression) != nil,
-    let date = try? KiteDateOnly(String(value.prefix(10)))
-  else { return nil }
-  let chars = Array(value)
-  guard let hour = Int(String(chars[11...12])), hour < 24,
-    let minute = Int(String(chars[14...15])), minute < 60,
-    let second = Int(String(chars[17...18])), second < 60
-  else { return nil }
-  var suffix = String(chars.dropFirst(19))
-  var fraction: Double = 0
-  if suffix.hasPrefix(".") {
-    let digits = suffix.dropFirst().prefix(while: { $0.isNumber })
-    fraction = Double("0." + digits) ?? 0
-    suffix = String(suffix.dropFirst(digits.count + 1))
-  }
-  var zone = timeZone
-  if suffix == "Z" {
-    zone = TimeZone(secondsFromGMT: 0)!
-  } else if !suffix.isEmpty {
-    let raw = suffix.replacingOccurrences(of: ":", with: "")
-    guard let hours = Int(raw.dropFirst().prefix(2)), hours < 24,
-      let minutes = Int(raw.suffix(2)), minutes < 60,
-      let explicitZone = TimeZone(
-        secondsFromGMT: (raw.first == "-" ? -1 : 1) * (hours * 3600 + minutes * 60))
-    else { return nil }
-    zone = explicitZone
-  }
-  var calendar = Calendar(identifier: .gregorian)
-  calendar.timeZone = zone
-  let components = DateComponents(
-    year: date.year, month: date.month, day: date.day,
-    hour: hour, minute: minute, second: second)
-  guard let instant = calendar.date(from: components),
-    calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: instant)
-      == components
-  else { return nil }
-  return instant.addingTimeInterval(fraction)
 }
