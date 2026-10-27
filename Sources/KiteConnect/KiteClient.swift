@@ -157,7 +157,8 @@ public actor KiteClient {
   {
     let response = try await response(for: request)
     do {
-      let envelope = try JSONDecoder().decode(Envelope<Value>.self, from: response.body)
+      let envelope = try KiteTimestamp.decoder(timeZone: configuration.tradingTimeZone).decode(
+        Envelope<Value>.self, from: response.body)
       guard envelope.status == "success" else {
         throw KiteError.decoding(
           statusCode: response.statusCode, message: "Expected success envelope")
