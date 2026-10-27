@@ -2,11 +2,53 @@
 
 ## Set up commit checks
 
-Install the repository's pre-commit hook after cloning (requires Python 3):
+Install SwiftFormat 0.64.3 and enable the repository's pre-commit hook after
+cloning (requires Python 3 and Git):
 
 ```sh
 git config core.hooksPath .githooks
 ```
+
+On macOS, `brew install swiftformat` installs the current Homebrew release.
+Check it with `swiftformat --version`; the hook requires exactly 0.64.3 so
+contributors use the same formatting rules. For a specific release, install
+with `mint install nicklockwood/SwiftFormat@0.64.3` if you use Mint, or get the
+appropriate executable from the [0.64.3 release](https://github.com/nicklockwood/SwiftFormat/releases/tag/0.64.3)
+and place it on `PATH`. Linux contributors can build that tag with Swift
+Package Manager. This is Nick Lockwood's `swiftformat`, distinct from the
+toolchain's `swift format` command.
+
+## Resolve a formatting rejection
+
+The hook first checks file sizes, then lints added or modified staged authored
+Swift files using the staged root `.swiftformat`. Renames and type changes to
+regular Swift files are checked too. Generated and vendored files use the same
+staged attribute exemptions as the size check. Commits without authored Swift
+changes do not require SwiftFormat.
+
+The hook never rewrites files or stages changes, so partial staging is preserved.
+To fix a rejection, run `swiftformat <file> --config .swiftformat`, review the
+diff, and stage the intended hunks again before committing. Stage configuration
+changes along with the source they affect. For a full repository check, run:
+
+```sh
+swiftformat . --lint --config .swiftformat
+```
+
+The configuration uses Swift 6.4, four-space indentation, and SwiftFormat's
+default rules with explicit comma, header, and `self` settings. When upgrading
+SwiftFormat, update the version in `.githooks/check_swift_format.py`,
+`.swiftformat`, these instructions, and the hook test fixture together; review
+any resulting source changes.
+
+Swift source headers use the file name, `swiftkiteconnect`, and
+`Created by <Git author name> on DD/MM/YYYY.`. SwiftFormat fills `{file}`,
+`{author.name}`, and `{created}` from file and Git metadata, using UTC for
+consistent dates. The author is the person who first committed the file;
+new files use the configured Git author identity. Existing
+creation dates are retained; the template does not stamp every file with
+the date formatting runs. SwiftFormat preserves the package manifest's
+Swift tools version comment.
 
 ## Resolve a file-size rejection
 

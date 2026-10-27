@@ -9,7 +9,7 @@ let package = Package(
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "swiftkiteconnect",
-            targets: ["swiftkiteconnect"]
+            targets: ["swiftkiteconnect"],
         ),
     ],
     targets: [
@@ -28,5 +28,5 @@ let package = Package(
                 .enableUpcomingFeature("ApproachableConcurrency"),
             ],
         ),
-    ]
+    ],
 )

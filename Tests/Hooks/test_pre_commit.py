@@ -1,5 +1,6 @@
 """Exercise the hook against real Git indexes in disposable repositories."""
 
+import json
 import os
 from pathlib import Path
 import shutil
@@ -10,7 +11,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 
 
-class StagedTokenLimitTests(unittest.TestCase):
+class StagedCommitChecksTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
@@ -25,9 +26,30 @@ class StagedTokenLimitTests(unittest.TestCase):
         hooks = self.repo / ".githooks"
         hooks.mkdir()
         shutil.copy2(ROOT / ".githooks/pre-commit", hooks / "pre-commit")
+        shutil.copy2(ROOT / ".githooks/check_swift_format.py", hooks / "check_swift_format.py")
         shutil.copy2(ROOT / ".gitattributes", self.repo / ".gitattributes")
+        shutil.copy2(ROOT / ".swiftformat", self.repo / ".swiftformat")
+        # Keep size-check tests independent of a developer's installed formatter.
+        self.bin = self.repo / "bin"
+        self.bin.mkdir()
+        formatter = self.bin / "swiftformat"
+        formatter.write_text(
+            "#!/usr/bin/env python3\n"
+            "import json, pathlib, sys\n"
+            "if '--version' in sys.argv:\n"
+            "    print('0.64.3')\n"
+            "else:\n"
+            "    data = sys.stdin.buffer.read()\n"
+            "    pathlib.Path('formatter-input').write_bytes(data)\n"
+            "    config = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).read_bytes()\n"
+            "    pathlib.Path('formatter-config').write_bytes(config)\n"
+            "    pathlib.Path('formatter-args').write_text(json.dumps(sys.argv))\n"
+            "    sys.exit(1 if b'UNFORMATTED' in data else 0)\n"
+        )
+        formatter.chmod(0o755)
+        self.env["PATH"] = str(self.bin) + os.pathsep + self.env["PATH"]
         self.git("config", "core.hooksPath", ".githooks")
-        self.git("add", ".gitattributes")
+        self.git("add", ".gitattributes", ".swiftformat")
 
     def git(self, *args):
         return subprocess.run(
@@ -129,6 +151,63 @@ class StagedTokenLimitTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn(b"Commit blocked", result.stderr)
         self.assertEqual(self.git("write-tree").stdout, before)
+
+    def test_formatting_reads_staged_content_and_config(self):
+        name = "space ' quote\nfile.swift"
+        self.stage(name, b"let value = 1\n")
+        (self.repo / name).write_bytes(b"UNFORMATTED working copy")
+        config = (self.repo / ".swiftformat").read_bytes()
+        (self.repo / ".swiftformat").write_text("unstaged invalid config")
+        before = self.git("write-tree").stdout
+        self.check_hook(True)
+        self.assertEqual((self.repo / "formatter-input").read_bytes(), b"let value = 1\n")
+        self.assertEqual((self.repo / "formatter-config").read_bytes(), config)
+        args = json.loads((self.repo / "formatter-args").read_text())
+        self.assertEqual(args[args.index("--stdin-path") + 1], name)
+        self.assertEqual(self.git("write-tree").stdout, before)
+        self.assertEqual((self.repo / name).read_bytes(), b"UNFORMATTED working copy")
+
+    def test_unformatted_staged_swift_blocks_actual_commit(self):
+        self.stage("source.swift", b"UNFORMATTED staged blob")
+        (self.repo / "source.swift").write_bytes(b"formatted working copy")
+        before = self.git("write-tree").stdout
+        result = subprocess.run(
+            ["git", "commit", "-m", "Should fail formatting"],
+            cwd=self.repo, env=self.env, capture_output=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"SwiftFormat failed for staged", result.stderr)
+        self.assertEqual(self.git("write-tree").stdout, before)
+        self.assertEqual((self.repo / "source.swift").read_bytes(), b"formatted working copy")
+
+    def test_missing_formatter_only_blocks_authored_swift(self):
+        (self.bin / "swiftformat").unlink()
+        # Simulate an unavailable tool without falling through to a system install.
+        (self.bin / "swiftformat").write_text("#!/bin/sh\nexit 127\n")
+        (self.bin / "swiftformat").chmod(0o755)
+        self.stage("notes.md", b"notes")
+        self.stage("API.generated.swift", b"UNFORMATTED")
+        self.check_hook(True)
+        self.stage("source.swift", b"let value = 1\n")
+        self.assertIn("SwiftFormat 0.64.3 is required", self.check_hook(False))
+
+    def test_wrong_formatter_version_blocks(self):
+        formatter = self.bin / "swiftformat"
+        formatter.write_text("#!/bin/sh\necho 0.63.1\n")
+        self.stage("source.swift", b"let value = 1\n")
+        self.assertIn("found 0.63.1", self.check_hook(False))
+
+    def test_missing_staged_configuration_blocks(self):
+        self.git("rm", "--cached", ".swiftformat")
+        self.stage("source.swift", b"let value = 1\n")
+        self.assertIn("stage the root .swiftformat", self.check_hook(False))
+
+    def test_deleted_swift_does_not_require_formatter(self):
+        self.stage("source.swift", b"let value = 1\n")
+        self.git("commit", "--quiet", "-m", "Baseline")
+        self.git("rm", "source.swift")
+        (self.bin / "swiftformat").write_text("#!/bin/sh\nexit 1\n")
+        self.check_hook(True)
 
 
 if __name__ == "__main__":
