@@ -84,7 +84,7 @@ public enum KiteAlertOperandType: KiteStringValue {
   }
 }
 
-/// Shared lifecycle response for simple and ATO alerts. Basket support is owned by ticket #14.
+/// Shared lifecycle response for simple and order-triggering alerts.
 public struct KiteAlert: Decodable, Sendable, Equatable {
   public let type: KiteAlertType
   public let userID: String
@@ -104,6 +104,8 @@ public struct KiteAlert: Decodable, Sendable, Equatable {
   public let alertCount: Int64
   public let createdAt: Date
   public let updatedAt: Date
+  /// Creation receipts may omit the basket, even for ATO alerts.
+  public let basket: KiteAlertBasket?
   enum CodingKeys: String, CodingKey {
     case type = "type"
     case userID = "user_id"
@@ -123,6 +125,7 @@ public struct KiteAlert: Decodable, Sendable, Equatable {
     case alertCount = "alert_count"
     case createdAt = "created_at"
     case updatedAt = "updated_at"
+    case basket
   }
   public init(from decoder: any Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -144,6 +147,7 @@ public struct KiteAlert: Decodable, Sendable, Equatable {
     alertCount = try container.decode(Int64.self, forKey: .alertCount)
     createdAt = try container.decode(Date.self, forKey: .createdAt)
     updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    basket = try container.decodeIfPresent(KiteAlertBasket.self, forKey: .basket)
     guard !uuid.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       throw DecodingError.dataCorruptedError(
         forKey: .uuid, in: container, debugDescription: "Empty alert identifier")
@@ -178,7 +182,7 @@ extension KiteClient {
   }
 }
 
-/// Instrument/attribute operand shared by simple alerts and future ATO requests.
+/// Instrument/attribute operand shared by simple and ATO requests.
 /// Attributes are server-owned strings; the docs give LastTradedPrice as an example.
 public struct KiteAlertInstrument: Sendable, Equatable {
   public var exchange: KiteExchange
@@ -343,14 +347,26 @@ public struct KiteAlertMarketData: Decodable, Sendable, Equatable {
   }
 }
 
-/// Lifecycle history shared by alert types; order metadata remains raw pending ticket #14.
+/// The alerts docs specify only null order_meta, with no non-null ATO schema.
+/// Do not assume that an undocumented value is a standalone order or proof of execution.
+public enum KiteAlertOrderMetadata: Sendable, Equatable {
+  case notReported
+  case undocumented(KiteOrderMutationJSONValue)
+}
+
+/// Lifecycle history shared by simple and ATO alerts.
 public struct KiteAlertHistoryEntry: Decodable, Sendable, Equatable {
   public let uuid: String
   public let type: KiteAlertType
   public let meta: [KiteAlertMarketData]
   public let condition: String
   public let createdAt: Date
+  /// Lossless compatibility view of order_meta. Null and missing values are nil.
   public let orderMeta: KiteOrderMutationJSONValue?
+  /// Typed documented absence, or preserved non-null metadata whose schema is unpublished.
+  public var orderMetadata: KiteAlertOrderMetadata {
+    orderMeta.map(KiteAlertOrderMetadata.undocumented) ?? .notReported
+  }
   enum CodingKeys: String, CodingKey {
     case uuid, type, meta, condition
     case createdAt = "created_at"
@@ -387,4 +403,46 @@ private func alertInstrument(_ value: KiteAlertInstrument, prefix: String) throw
   try alertText(value.exchange.rawValue, field: "\(prefix)_exchange")
   try alertText(value.tradingSymbol, field: "\(prefix)_tradingsymbol")
   try alertText(value.attribute, field: "\(prefix)_attribute")
+}
+
+/// Complete ATO definition; creating the alert does not prove any order was executed.
+public struct KiteATOAlertRequest: Sendable, Equatable {
+  public var name: String
+  public var condition: KiteAlertCondition
+  public var basket: KiteAlertBasket
+  public init(name: String, condition: KiteAlertCondition, basket: KiteAlertBasket) {
+    self.name = name
+    self.condition = condition
+    self.basket = basket
+  }
+
+  func parameters() throws -> [KiteParameter] {
+    try alertText(name, field: "name")
+    let conditionFields = try condition.parameters()
+    try basket.validate()
+    let basketJSON = try JSONEncoder().encode(basket)
+    return [.init("name", name), .init("type", "ato")]
+      + conditionFields + [.init("basket", String(decoding: basketJSON, as: UTF8.self))]
+  }
+}
+
+extension KiteClient {
+  /// Sends once. Reconcile an uncertain outcome by reading alerts before resubmitting.
+  public func createAlert(_ alert: KiteATOAlertRequest) async throws -> KiteAlert {
+    try await execute(
+      KiteRequest(
+        method: .post, path: "/alerts", body: .form(try alert.parameters()),
+        isTradingMutation: true), as: KiteAlert.self)
+  }
+}
+
+extension KiteClient {
+  /// Fetch current state first, then submit the complete desired ATO definition and basket.
+  public func modifyAlert(uuid: String, alert: KiteATOAlertRequest) async throws -> KiteAlert {
+    try alertIdentifier(uuid)
+    return try await execute(
+      KiteRequest(
+        method: .put, path: "/alerts/\(uuid)", body: .form(try alert.parameters()),
+        isTradingMutation: true), as: KiteAlert.self)
+  }
 }
