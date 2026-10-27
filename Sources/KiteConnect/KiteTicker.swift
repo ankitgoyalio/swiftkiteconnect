@@ -36,7 +36,7 @@ public struct KiteLTPTick: Sendable, Equatable {
   public let lastPrice: Decimal
 }
 
-/// One explicit WebSocket owner. LTP only; no reconnect or replay in this release slice.
+/// One explicit WebSocket owner. No automatic reconnect or replay.
 public actor KiteTicker {
   private let url: URL
   private let transport: any KiteWebSocketTransport
@@ -46,6 +46,8 @@ public actor KiteTicker {
   private var connecting = false
   private var connector: Task<any KiteWebSocketConnection, any Error>?
   private var subscribers: [UUID: AsyncThrowingStream<KiteLTPTick, any Error>.Continuation] = [:]
+  private var marketSubscribers:
+    [UUID: AsyncThrowingStream<KiteMarketTick, any Error>.Continuation] = [:]
   private var subscriptions: Set<UInt32> = []
   private var commandOperation: UUID?
 
@@ -91,6 +93,22 @@ public actor KiteTicker {
     return stream
   }
 
+  /// Each subscriber receives every binary layout with its own bounded buffer.
+  public func marketTicks(bufferCapacity: Int = 256) throws -> AsyncThrowingStream<
+    KiteMarketTick, any Error
+  > {
+    guard bufferCapacity > 0 else {
+      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    }
+    let id = UUID()
+    let (stream, continuation) = AsyncThrowingStream<KiteMarketTick, any Error>.makeStream(
+      bufferingPolicy: .bufferingOldest(bufferCapacity))
+    marketSubscribers[id] = continuation
+    continuation.onTermination = { [weak self] _ in Task { await self?.removeMarketSubscriber(id) }
+    }
+    return stream
+  }
+
   public func connect() async throws {
     try Task.checkCancellation()
     guard !connecting, connection == nil else { throw KiteTickerError.alreadyConnected }
@@ -133,7 +151,12 @@ public actor KiteTicker {
     }
   }
 
+  /// Preserves the original LTP subscription API, including function references.
   public func subscribe(_ tokens: [UInt32]) async throws {
+    try await subscribe(tokens, mode: .ltp)
+  }
+
+  public func subscribe(_ tokens: [UInt32], mode: KiteTickerMode) async throws {
     guard !tokens.isEmpty, tokens.allSatisfy({ $0 > 0 }), subscriptions.union(tokens).count <= 3000
     else {
       throw KiteTickerError.invalidConfiguration("Subscribe to 1...3000 nonzero instrument tokens")
@@ -148,9 +171,33 @@ public actor KiteTicker {
     do {
       try await connection.send(text: command("subscribe", tokens))
       guard epoch == generation else { throw CancellationError() }
-      try await connection.send(text: modeCommand(tokens))
+      try await connection.send(text: modeCommand(mode, tokens))
       guard epoch == generation else { throw CancellationError() }
       subscriptions.formUnion(tokens)
+    } catch {
+      await failed(error, epoch: epoch)
+      throw error
+    }
+  }
+
+  /// Changes only currently subscribed tokens. Commands are serialized by the caller.
+  public func setMode(_ mode: KiteTickerMode, for tokens: [UInt32]) async throws {
+    guard !tokens.isEmpty, tokens.allSatisfy({ $0 > 0 }) else {
+      throw KiteTickerError.invalidConfiguration("Supply nonzero instrument tokens")
+    }
+    guard let connection else { throw KiteTickerError.notConnected }
+    guard commandOperation == nil else { throw KiteTickerError.operationInProgress }
+    guard Set(tokens).isSubset(of: subscriptions) else {
+      throw KiteTickerError.invalidConfiguration("Mode changes require subscribed tokens")
+    }
+    let operation = UUID()
+    commandOperation = operation
+    defer { if commandOperation == operation { commandOperation = nil } }
+    let epoch = generation
+    do {
+      try Task.checkCancellation()
+      try await connection.send(text: modeCommand(mode, tokens))
+      guard epoch == generation else { throw CancellationError() }
     } catch {
       await failed(error, epoch: epoch)
       throw error
@@ -192,6 +239,8 @@ public actor KiteTicker {
     let current = subscribers.values
     subscribers.removeAll()
     for continuation in current { continuation.finish() }
+    for continuation in marketSubscribers.values { continuation.finish() }
+    marketSubscribers.removeAll()
     await socket?.close()
   }
 
@@ -200,11 +249,14 @@ public actor KiteTicker {
       decoding: try JSONSerialization.data(withJSONObject: ["a": action, "v": tokens]),
       as: UTF8.self)
   }
-  private func modeCommand(_ tokens: [UInt32]) throws -> String {
+  private func modeCommand(_ mode: KiteTickerMode, _ tokens: [UInt32]) throws -> String {
     String(
-      decoding: try JSONSerialization.data(withJSONObject: ["a": "mode", "v": ["ltp", tokens]]),
+      decoding: try JSONSerialization.data(withJSONObject: [
+        "a": "mode", "v": [mode.rawValue, tokens],
+      ]),
       as: UTF8.self)
   }
+  private func removeMarketSubscriber(_ id: UUID) { marketSubscribers.removeValue(forKey: id) }
   private func removeSubscriber(_ id: UUID) { subscribers.removeValue(forKey: id) }
   private func failed(_ error: any Error, epoch: UUID) async {
     guard epoch == generation else { return }
@@ -216,6 +268,8 @@ public actor KiteTicker {
     commandOperation = nil
     for continuation in subscribers.values { continuation.finish(throwing: error) }
     subscribers.removeAll()
+    for continuation in marketSubscribers.values { continuation.finish(throwing: error) }
+    marketSubscribers.removeAll()
     await socket?.close()
   }
   private func receive(_ message: KiteWebSocketMessage, epoch: UUID) throws {
@@ -224,6 +278,17 @@ public actor KiteTicker {
     guard case .binary(let data) = message else { return }
     let ticks = try Self.decode(data)
     for tick in ticks {
+      for (id, continuation) in marketSubscribers {
+        switch continuation.yield(tick) {
+        case .dropped:
+          continuation.finish(throwing: KiteTickerError.bufferOverflow)
+          marketSubscribers.removeValue(forKey: id)
+        case .terminated: marketSubscribers.removeValue(forKey: id)
+        case .enqueued: break
+        @unknown default: break
+        }
+      }
+      let tick = KiteLTPTick(instrumentToken: tick.instrumentToken, lastPrice: tick.lastPrice)
       for (id, continuation) in subscribers {
         switch continuation.yield(tick) {
         case .dropped:
@@ -236,7 +301,7 @@ public actor KiteTicker {
       }
     }
   }
-  private static func decode(_ data: Data) throws -> [KiteLTPTick] {
+  private static func decode(_ data: Data) throws -> [KiteMarketTick] {
     let bytes = [UInt8](data)
     if bytes.count == 1 { return [] }  // documented binary heartbeat
     guard bytes.count >= 2 else { throw KiteTickerError.malformedPacket }
@@ -247,14 +312,13 @@ public actor KiteTicker {
     }
     let count = short(0)
     var offset = 2
-    var result: [KiteLTPTick] = []
+    var result: [KiteMarketTick] = []
     for _ in 0..<count {
       guard offset + 2 <= bytes.count else { throw KiteTickerError.malformedPacket }
       let length = short(offset)
       offset += 2
       guard offset + length <= bytes.count else { throw KiteTickerError.malformedPacket }
-      // A default quote can be in flight before the LTP-mode command takes effect.
-      // Project only the shared token/price prefix; richer models belong to #19.
+      // Packet length defines the layout, including packets in flight during mode changes.
       guard [8, 28, 32, 44, 184].contains(length) else {
         throw KiteTickerError.unsupportedPacketLength(length)
       }
@@ -263,7 +327,45 @@ public actor KiteTicker {
       let raw = word(offset + 4)
       let segment = token & 0xff
       let divisor = segment == 3 ? 10_000_000 : ([6, 12].contains(segment) ? 10_000 : 100)
-      result.append(KiteLTPTick(instrumentToken: token, lastPrice: Decimal(raw) / Decimal(divisor)))
+      func price(_ field: Int) -> Decimal { Decimal(word(offset + field)) / Decimal(divisor) }
+      var details: KiteMarketTick.Details = .ltp
+      if length == 44 || length == 184 {
+        let quote = KiteQuoteFields(
+          lastTradedQuantity: word(offset + 8), averageTradedPrice: price(12),
+          volumeTraded: word(offset + 16), totalBuyQuantity: word(offset + 20),
+          totalSellQuantity: word(offset + 24),
+          ohlc: KiteOHLC(open: price(28), high: price(32), low: price(36), close: price(40)))
+        details = .quote(quote)
+        if length == 184 {
+          let levels = stride(from: 64, to: 184, by: 12).map { field in
+            KiteDepthLevel(
+              price: price(field + 4), quantity: Int64(word(offset + field)),
+              orders: Int64(short(offset + field + 8)))
+          }
+          details = .full(
+            KiteFullFields(
+              quote: quote,
+              lastTradeTime: Date(timeIntervalSince1970: TimeInterval(word(offset + 44))),
+              openInterest: word(offset + 48), openInterestDayHigh: word(offset + 52),
+              openInterestDayLow: word(offset + 56),
+              exchangeTimestamp: Date(timeIntervalSince1970: TimeInterval(word(offset + 60))),
+              depth: KiteMarketDepth(buy: Array(levels.prefix(5)), sell: Array(levels.suffix(5)))))
+        }
+      }
+      if length == 28 || length == 32 {
+        let index = KiteIndexFields(
+          ohlc: KiteOHLC(open: price(16), high: price(8), low: price(12), close: price(20)),
+          priceChange: Decimal(Int32(bitPattern: word(offset + 24))) / Decimal(divisor))
+        details = .indexQuote(index)
+        if length == 32 {
+          details = .indexFull(
+            index,
+            exchangeTimestamp: Date(timeIntervalSince1970: TimeInterval(word(offset + 28))))
+        }
+      }
+      result.append(
+        KiteMarketTick(
+          instrumentToken: token, lastPrice: Decimal(raw) / Decimal(divisor), details: details))
       offset += length
     }
     guard offset == bytes.count else { throw KiteTickerError.malformedPacket }
