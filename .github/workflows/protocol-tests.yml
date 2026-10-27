@@ -40,6 +40,9 @@ jobs:
     timeout-minutes: 45
     env:
       DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      # The image's iOS 27.1 iPhone Duo runtime failed test-runner startup.
+      IOS_SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-27-0
+      IOS_SIMULATOR_NAME: iPhone 17
     steps:
       - uses: actions/checkout@v4
       - name: Verify native Xcode and Swift toolchain
