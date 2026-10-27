@@ -598,3 +598,19 @@ func gttExecutionCanLackOrderResult(mode: String) async throws {
   #expect(decoded.orders[1].result != nil)
   #expect(decoded.orders[1].result?.orderResult == nil)
 }
+
+@Test(arguments: ["create", "modify", "delete"], [0, -1])
+func gttUnusableMutationReceiptIsUncertainAndSentOnce(operation: String, identifier: Int)
+  async throws
+{
+  let transport = ControlledHTTP("{\"status\":\"success\",\"data\":{\"trigger_id\":\(identifier)}}")
+  let client = try KiteClient(
+    apiKey: "key", accessToken: "token", configuration: .sandbox, transport: transport)
+  do {
+    try await performGTTOperation(operation, client: client)
+    Issue.record("Expected uncertain decoding for unusable trigger ID")
+  } catch KiteError.uncertainOutcome(.decoding(let status, _)) {
+    #expect(status == 200)
+  }
+  #expect(await transport.requests.count == 1)
+}

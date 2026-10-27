@@ -49,22 +49,21 @@ public actor KiteTicker {
   private var authenticationBlocked = false
   private var modes: [UInt32: KiteTickerMode] = [:]
   private var desiredRevision = UUID()
-  private var lifecycleSubscribers:
-    [UUID: AsyncThrowingStream<KiteTickerLifecycleEvent, any Error>.Continuation] = [:]
+  private var lifecycleSubscribers = BoundedSubscribers<KiteTickerLifecycleEvent>()
   private let tradingTimeZone: TimeZone
-  private var brokerSubscribers:
-    [UUID: AsyncThrowingStream<KiteBrokerEvent, any Error>.Continuation] = [:]
-  private var orderSubscribers:
-    [UUID: AsyncThrowingStream<KiteOrderUpdateEvent, any Error>.Continuation] = [:]
+  private var brokerSubscribers = BoundedSubscribers<KiteBrokerEvent>()
+  private var orderSubscribers = BoundedSubscribers<KiteOrderUpdateEvent>()
   private let transport: any KiteWebSocketTransport
   private var connection: (any KiteWebSocketConnection)?
+  // Retired handshakes own cleanup of any late socket result. Every new handshake waits
+  // for this chain, so detaching actor state never releases physical admission early.
+  private var teardown: Task<Void, Never>?
   private var receiver: Task<Void, Never>?
   private var generation = UUID()
   private var connecting = false
   private var connector: Task<any KiteWebSocketConnection, any Error>?
-  private var subscribers: [UUID: AsyncThrowingStream<KiteLTPTick, any Error>.Continuation] = [:]
-  private var marketSubscribers:
-    [UUID: AsyncThrowingStream<KiteMarketTick, any Error>.Continuation] = [:]
+  private var subscribers = BoundedSubscribers<KiteLTPTick>()
+  private var marketSubscribers = BoundedSubscribers<KiteMarketTick>()
   private var subscriptions: Set<UInt32> = []
   private var commandOperation: UUID?
 
@@ -110,93 +109,51 @@ public actor KiteTicker {
   /// Each call creates an independent bounded subscriber. Overflow ends only that subscriber.
   public func ticks(bufferCapacity: Int = 256) throws -> AsyncThrowingStream<KiteLTPTick, any Error>
   {
-    guard bufferCapacity > 0 else {
-      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    try subscribers.stream(capacity: bufferCapacity) { [weak self] id in
+      Task { await self?.removeSubscriber(id) }
     }
-    let id = UUID()
-    let (stream, continuation) = AsyncThrowingStream<KiteLTPTick, any Error>.makeStream(
-      bufferingPolicy: .bufferingOldest(bufferCapacity))
-    subscribers[id] = continuation
-    continuation.onTermination = { [weak self] _ in Task { await self?.removeSubscriber(id) } }
-    return stream
   }
 
   /// Each subscriber receives every binary layout with its own bounded buffer.
   public func marketTicks(bufferCapacity: Int = 256) throws -> AsyncThrowingStream<
     KiteMarketTick, any Error
   > {
-    guard bufferCapacity > 0 else {
-      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    try marketSubscribers.stream(capacity: bufferCapacity) { [weak self] id in
+      Task { await self?.removeMarketSubscriber(id) }
     }
-    let id = UUID()
-    let (stream, continuation) = AsyncThrowingStream<KiteMarketTick, any Error>.makeStream(
-      bufferingPolicy: .bufferingOldest(bufferCapacity))
-    marketSubscribers[id] = continuation
-    continuation.onTermination = { [weak self] _ in Task { await self?.removeMarketSubscriber(id) }
-    }
-    return stream
   }
 
   /// Each call has a bounded buffer independent of all market-data subscribers.
   public func orderUpdates(bufferCapacity: Int = 256) throws -> AsyncThrowingStream<
     KiteOrderUpdateEvent, any Error
   > {
-    guard bufferCapacity > 0 else {
-      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    try orderSubscribers.stream(capacity: bufferCapacity) { [weak self] id in
+      Task { await self?.removeOrderSubscriber(id) }
     }
-    let id = UUID()
-    let (stream, continuation) = AsyncThrowingStream<KiteOrderUpdateEvent, any Error>.makeStream(
-      bufferingPolicy: .bufferingOldest(bufferCapacity))
-    orderSubscribers[id] = continuation
-    continuation.onTermination = { [weak self] _ in Task { await self?.removeOrderSubscriber(id) } }
-    return stream
   }
 
   /// Broker notices and errors have their own per-subscriber bounded capacity.
   public func brokerEvents(bufferCapacity: Int = 64) throws -> AsyncThrowingStream<
     KiteBrokerEvent, any Error
   > {
-    guard bufferCapacity > 0 else {
-      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    try brokerSubscribers.stream(capacity: bufferCapacity) { [weak self] id in
+      Task { await self?.removeBrokerSubscriber(id) }
     }
-    let id = UUID()
-    let (stream, continuation) = AsyncThrowingStream<KiteBrokerEvent, any Error>.makeStream(
-      bufferingPolicy: .bufferingOldest(bufferCapacity))
-    brokerSubscribers[id] = continuation
-    continuation.onTermination = { [weak self] _ in Task { await self?.removeBrokerSubscriber(id) }
-    }
-    return stream
   }
 
   public func lifecycleEvents(bufferCapacity: Int = 64) throws -> AsyncThrowingStream<
     KiteTickerLifecycleEvent, any Error
   > {
-    guard bufferCapacity > 0 else {
-      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
-    }
-    let id = UUID()
-    let (stream, continuation) = AsyncThrowingStream<KiteTickerLifecycleEvent, any Error>
-      .makeStream(bufferingPolicy: .bufferingOldest(bufferCapacity))
-    lifecycleSubscribers[id] = continuation
-    continuation.onTermination = { [weak self] _ in
+    try lifecycleSubscribers.stream(capacity: bufferCapacity) { [weak self] id in
       Task { await self?.removeLifecycleSubscriber(id) }
     }
-    return stream
   }
 
   private func removeLifecycleSubscriber(_ id: UUID) {
-    lifecycleSubscribers.removeValue(forKey: id)
+    lifecycleSubscribers.remove(id)
   }
   private func emit(_ event: KiteTickerLifecycleEvent) {
-    for (id, continuation) in lifecycleSubscribers {
-      switch continuation.yield(event) {
-      case .dropped:
-        continuation.finish(throwing: KiteTickerError.bufferOverflow)
-        lifecycleSubscribers.removeValue(forKey: id)
-      case .terminated: lifecycleSubscribers.removeValue(forKey: id)
-      default: break
-      }
-    }
+    lifecycleSubscribers.yield(event)
   }
 
   public func connect() async throws {
@@ -247,16 +204,13 @@ public actor KiteTicker {
     recoveryID = UUID()
     recovery?.cancel()
     recovery = nil
-    connector?.cancel()
-    connector = nil
+    let closing = retireConnection()
     receiver?.cancel()
     receiver = nil
     connecting = wasActive
     commandOperation = nil
-    let old = connection
-    connection = nil
     if wasActive && !wasBlocked { emit(.possibleDataGap) }
-    await old?.close()
+    await closing.value
     guard epoch == generation else { throw CancellationError() }
     if Task.isCancelled {
       await disconnect()
@@ -278,6 +232,9 @@ public actor KiteTicker {
 
   private func establish(epoch: UUID) async throws {
     guard epoch == generation, active else { throw CancellationError() }
+    if let teardown { await teardown.value }
+    try Task.checkCancellation()
+    guard epoch == generation, active else { throw CancellationError() }
     connecting = true
     let pending = Task { [transport, url] in try await transport.connect(url: url) }
     connector = pending
@@ -287,47 +244,42 @@ public actor KiteTicker {
       pending.cancel()
     }
     guard epoch == generation, !Task.isCancelled, active else {
-      await socket.close()
+      // The transition which invalidated this epoch owns late-result cleanup.
       throw CancellationError()
     }
     connector = nil
-    // Retain the pending socket so disconnect/replacement also closes a blocked restore write.
+    // Retain the socket so failure/disconnect/replacement owns any blocked restore cleanup.
     connection = socket
-    do {
-      var sent: Set<UInt32> = []
-      repeat {
-        let revision = desiredRevision
-        let snapshot = modes
-        let tokens = Set(snapshot.keys)
-        if !sent.subtracting(tokens).isEmpty {
-          try await send(
-            command("unsubscribe", sent.subtracting(tokens).sorted()), on: socket, epoch: epoch)
-        }
-        if !tokens.isEmpty {
-          try await send(command("subscribe", tokens.sorted()), on: socket, epoch: epoch)
-          for mode in KiteTickerMode.allCases {
-            let group = tokens.filter { snapshot[$0] == mode }.sorted()
-            if !group.isEmpty { try await send(modeCommand(mode, group), on: socket, epoch: epoch) }
-          }
-        }
-        sent = tokens
-        if revision == desiredRevision { break }
-      } while true
-      guard epoch == generation, active, !Task.isCancelled else { throw CancellationError() }
-      connecting = false
-      receiver = Task { [weak self] in
-        do {
-          for try await message in socket.messages {
-            try Task.checkCancellation()
-            guard let self else { break }
-            try await self.receive(message, epoch: epoch)
-          }
-          await self?.failed(KiteTickerError.connectionClosed, epoch: epoch)
-        } catch { await self?.failed(error, epoch: epoch) }
+    var sent: Set<UInt32> = []
+    repeat {
+      let revision = desiredRevision
+      let snapshot = modes
+      let tokens = Set(snapshot.keys)
+      if !sent.subtracting(tokens).isEmpty {
+        try await send(
+          command("unsubscribe", sent.subtracting(tokens).sorted()), on: socket, epoch: epoch)
       }
-    } catch {
-      await socket.close()
-      throw error
+      if !tokens.isEmpty {
+        try await send(command("subscribe", tokens.sorted()), on: socket, epoch: epoch)
+        for mode in KiteTickerMode.allCases {
+          let group = tokens.filter { snapshot[$0] == mode }.sorted()
+          if !group.isEmpty { try await send(modeCommand(mode, group), on: socket, epoch: epoch) }
+        }
+      }
+      sent = tokens
+      if revision == desiredRevision { break }
+    } while true
+    guard epoch == generation, active, !Task.isCancelled else { throw CancellationError() }
+    connecting = false
+    receiver = Task { [weak self] in
+      do {
+        for try await message in socket.messages {
+          try Task.checkCancellation()
+          guard let self else { break }
+          try await self.receive(message, epoch: epoch)
+        }
+        await self?.failed(KiteTickerError.connectionClosed, epoch: epoch)
+      } catch { await self?.failed(error, epoch: epoch) }
     }
   }
 
@@ -434,28 +386,37 @@ public actor KiteTicker {
     recovery = nil
     generation = UUID()
     connecting = false
-    connector?.cancel()
-    connector = nil
+    let hadSocket = connection != nil
+    let closing = retireConnection()
     receiver?.cancel()
     receiver = nil
-    let socket = connection
-    connection = nil
     subscriptions.removeAll()
     modes.removeAll()
     commandOperation = nil
-    let current = subscribers.values
-    subscribers.removeAll()
-    for continuation in current { continuation.finish() }
-    for continuation in marketSubscribers.values { continuation.finish() }
-    marketSubscribers.removeAll()
-    for continuation in brokerSubscribers.values { continuation.finish() }
-    brokerSubscribers.removeAll()
-    for continuation in orderSubscribers.values { continuation.finish() }
-    orderSubscribers.removeAll()
+    subscribers.finish()
+    marketSubscribers.finish()
+    brokerSubscribers.finish()
+    orderSubscribers.finish()
     emit(.disconnected)
-    for continuation in lifecycleSubscribers.values { continuation.finish() }
-    lifecycleSubscribers.removeAll()
-    await socket?.close()
+    lifecycleSubscribers.finish()
+    if hadSocket { await closing.value }
+  }
+
+  /// Install the fence synchronously, before any actor suspension or recovery admission.
+  private func retireConnection() -> Task<Void, Never> {
+    let previous = teardown
+    let pending = connector
+    let socket = connection
+    pending?.cancel()
+    connector = nil
+    connection = nil
+    let closing = Task {
+      await previous?.value
+      if let socket { await socket.close() }
+      if let pending, let late = try? await pending.value { await late.close() }
+    }
+    teardown = closing
+    return closing
   }
 
   private func command(_ action: String, _ tokens: [UInt32]) throws -> String {
@@ -470,20 +431,17 @@ public actor KiteTicker {
       ]),
       as: UTF8.self)
   }
-  private func removeBrokerSubscriber(_ id: UUID) { brokerSubscribers.removeValue(forKey: id) }
-  private func removeOrderSubscriber(_ id: UUID) { orderSubscribers.removeValue(forKey: id) }
-  private func removeMarketSubscriber(_ id: UUID) { marketSubscribers.removeValue(forKey: id) }
-  private func removeSubscriber(_ id: UUID) { subscribers.removeValue(forKey: id) }
+  private func removeBrokerSubscriber(_ id: UUID) { brokerSubscribers.remove(id) }
+  private func removeOrderSubscriber(_ id: UUID) { orderSubscribers.remove(id) }
+  private func removeMarketSubscriber(_ id: UUID) { marketSubscribers.remove(id) }
+  private func removeSubscriber(_ id: UUID) { subscribers.remove(id) }
   private func failed(_ error: any Error, epoch: UUID, schedule: Bool = true) async {
     guard epoch == generation, active else { return }
     generation = UUID()
     connecting = false
-    connector?.cancel()
-    connector = nil
+    let closing = retireConnection()
     receiver?.cancel()
     receiver = nil
-    let socket = connection
-    connection = nil
     commandOperation = nil
     let authentication = Self.isAuthenticationFailure(error)
     let terminal: Bool
@@ -494,16 +452,11 @@ public actor KiteTicker {
     }
     if terminal {
       active = false
-      for continuation in subscribers.values { continuation.finish(throwing: error) }
-      subscribers.removeAll()
-      for continuation in marketSubscribers.values { continuation.finish(throwing: error) }
-      marketSubscribers.removeAll()
-      for continuation in brokerSubscribers.values { continuation.finish(throwing: error) }
-      brokerSubscribers.removeAll()
-      for continuation in orderSubscribers.values { continuation.finish(throwing: error) }
-      orderSubscribers.removeAll()
-      for continuation in lifecycleSubscribers.values { continuation.finish(throwing: error) }
-      lifecycleSubscribers.removeAll()
+      subscribers.finish(throwing: error)
+      marketSubscribers.finish(throwing: error)
+      brokerSubscribers.finish(throwing: error)
+      orderSubscribers.finish(throwing: error)
+      lifecycleSubscribers.finish(throwing: error)
     } else {
       if schedule { emit(.possibleDataGap) }
       if authentication {
@@ -516,7 +469,7 @@ public actor KiteTicker {
         startRecovery()
       }
     }
-    await socket?.close()
+    await closing.value
   }
 
   private static func isAuthenticationFailure(_ error: any Error) -> Bool {
@@ -577,27 +530,9 @@ public actor KiteTicker {
           KiteTextEvent.self, from: Data(text.utf8))
         switch event {
         case .order(let order):
-          for (id, continuation) in orderSubscribers {
-            switch continuation.yield(order) {
-            case .dropped:
-              continuation.finish(throwing: KiteTickerError.bufferOverflow)
-              orderSubscribers.removeValue(forKey: id)
-            case .terminated: orderSubscribers.removeValue(forKey: id)
-            case .enqueued: break
-            @unknown default: break
-            }
-          }
+          orderSubscribers.yield(order)
         case .broker(let event):
-          for (id, continuation) in brokerSubscribers {
-            switch continuation.yield(event) {
-            case .dropped:
-              continuation.finish(throwing: KiteTickerError.bufferOverflow)
-              brokerSubscribers.removeValue(forKey: id)
-            case .terminated: brokerSubscribers.removeValue(forKey: id)
-            case .enqueued: break
-            @unknown default: break
-            }
-          }
+          brokerSubscribers.yield(event)
           if case .serverError(let text) = event, Self.isAuthenticationText(text) {
             throw KiteTickerError.authenticationRequired
           }
@@ -610,27 +545,9 @@ public actor KiteTicker {
     guard case .binary(let data) = message else { return }
     let ticks = try Self.decode(data)
     for tick in ticks {
-      for (id, continuation) in marketSubscribers {
-        switch continuation.yield(tick) {
-        case .dropped:
-          continuation.finish(throwing: KiteTickerError.bufferOverflow)
-          marketSubscribers.removeValue(forKey: id)
-        case .terminated: marketSubscribers.removeValue(forKey: id)
-        case .enqueued: break
-        @unknown default: break
-        }
-      }
+      marketSubscribers.yield(tick)
       let tick = KiteLTPTick(instrumentToken: tick.instrumentToken, lastPrice: tick.lastPrice)
-      for (id, continuation) in subscribers {
-        switch continuation.yield(tick) {
-        case .dropped:
-          continuation.finish(throwing: KiteTickerError.bufferOverflow)
-          subscribers.removeValue(forKey: id)
-        case .terminated: subscribers.removeValue(forKey: id)
-        case .enqueued: break
-        @unknown default: break
-        }
-      }
+      subscribers.yield(tick)
     }
   }
   private static func decode(_ data: Data) throws -> [KiteMarketTick] {

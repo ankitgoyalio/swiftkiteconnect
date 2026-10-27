@@ -347,8 +347,11 @@ respect the snapshot's three connections per key and 3000 tokens per connection;
 there is no pooling. Recovery uses configurable bounded backoff, restores desired
 subscriptions/modes, and emits a possible gap. There is no missed-event replay.
 Authentication rejection stops recovery until fresh credentials arrive; replacing
-credentials fences stale handshakes/writes. Disconnect cancels recovery and closes
-streams. Register new streams after disconnect if connecting again. REST and ticker
+credentials fences stale handshakes/writes. A new handshake waits for physical
+teardown of the preceding socket, including cleanup of a late canceled handshake
+result. Recovery delay alone does not release that fence. Custom transports must
+honor cancellation and complete close; an uncooperative transport holds admission
+until its handshake/close settles. Disconnect cancels recovery and closes streams. Register new streams after disconnect if connecting again. REST and ticker
 credentials do not update each other. Reconcile missed orders through REST.
 `NIOKiteWebSocketTransport` is provisional until real Ubuntu tests run; TLS uses
 default certificate/hostname verification with no insecure switch.

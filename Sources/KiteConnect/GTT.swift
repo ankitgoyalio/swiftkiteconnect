@@ -322,6 +322,15 @@ public struct KiteGTTRequest: Sendable, Equatable {
 public struct KiteGTTReceipt: Decodable, Sendable, Equatable {
   public let triggerID: Int64
   enum CodingKeys: String, CodingKey { case triggerID = "trigger_id" }
+
+  public init(from decoder: any Decoder) throws {
+    let values = try decoder.container(keyedBy: CodingKeys.self)
+    triggerID = try values.decode(Int64.self, forKey: .triggerID)
+    guard triggerID > 0 else {
+      throw DecodingError.dataCorruptedError(
+        forKey: .triggerID, in: values, debugDescription: "Expected a positive trigger identifier")
+    }
+  }
 }
 
 extension KiteClient {

@@ -167,9 +167,16 @@ actor HandshakeGate: KiteWebSocketTransport {
   nonisolated let requested: AsyncStream<URL>.Continuation
   private var pending: [Int: CheckedContinuation<any KiteWebSocketConnection, any Error>] = [:]
   private var count = 0
-  init() { (requests, requested) = AsyncStream.makeStream() }
+  private let audit: CloseGateSocket?
+  init(audit: CloseGateSocket? = nil) {
+    self.audit = audit
+    (requests, requested) = AsyncStream.makeStream()
+  }
   func connect(url: URL) async throws -> any KiteWebSocketConnection {
     count += 1
+    if count > 1, let audit {
+      #expect(await audit.isClosed(), "New handshake bypassed stale-result teardown")
+    }
     let index = count
     return try await withCheckedThrowingContinuation { continuation in
       pending[index] = continuation
@@ -188,15 +195,17 @@ func replacedCredentialsFenceOldHandshakeSuccessAndFailure(lateSuccess: Bool) as
   var requests = transport.requests.makeAsyncIterator()
   let connecting = Task { try await ticker.connect() }
   _ = await requests.next()
+  var events = try await ticker.lifecycleEvents().makeAsyncIterator()
   let replacing = Task { try await ticker.replaceCredentials(apiKey: "new", accessToken: "new") }
+  #expect(try await events.next() == .possibleDataGap)
+  let stale = ControlledSocket()
+  await transport.complete(
+    1, with: lateSuccess ? .success(stale) : .failure(.handshakeRejected(statusCode: 403)))
   let newURL = try #require(await requests.next())
   #expect(newURL.absoluteString.contains("access_token=new"))
   let fresh = ControlledSocket()
-  let stale = ControlledSocket()
   await transport.complete(2, with: .success(fresh))
   try await replacing.value
-  await transport.complete(
-    1, with: lateSuccess ? .success(stale) : .failure(.handshakeRejected(statusCode: 403)))
   await #expect(throws: CancellationError.self) { try await connecting.value }
   if lateSuccess {
     var oldMessages = stale.messages.makeAsyncIterator()
@@ -278,19 +287,27 @@ actor CloseGateSocket: KiteWebSocketConnection {
   nonisolated let closing: AsyncStream<Void>
   private let started: AsyncStream<Void>.Continuation
   private var pending: CheckedContinuation<Void, Never>?
-  init() {
+  private let failWrites: Bool
+  private var closed = false
+  init(failWrites: Bool = false) {
+    self.failWrites = failWrites
     (messages, incoming) = AsyncThrowingStream.makeStream()
     (closing, started) = AsyncStream.makeStream()
   }
-  func send(text: String) async throws {}
+  func send(text: String) async throws {
+    if failWrites { throw KiteTickerError.transport("Controlled write failure") }
+  }
+  func isClosed() -> Bool { closed }
   func close() async {
-    incoming.finish()
+    if closed { return }
     await withCheckedContinuation { continuation in
       pending = continuation
       started.yield(())
     }
   }
   func finishClose() {
+    closed = true
+    incoming.finish()
     pending?.resume()
     pending = nil
   }
@@ -486,13 +503,14 @@ func replacingCredentialsFencesPendingRecoveryAndClosesPreviousConnection() asyn
   await time.advance()
   _ = await requests.next()  // old session's recovery is now suspended in the handshake
   let replacement = Task { try await ticker.replaceCredentials(apiKey: "key", accessToken: "new") }
+  #expect(try await events.next() == .possibleDataGap)
+  let stale = ControlledSocket()
+  await transport.complete(2, with: .success(stale))
   let url = try #require(await requests.next())
   #expect(url.absoluteString.contains("access_token=new"))
   let fresh = ControlledSocket()
-  let stale = ControlledSocket()
   await transport.complete(3, with: .success(fresh))
   try await replacement.value
-  await transport.complete(2, with: .success(stale))
   var closed = stale.messages.makeAsyncIterator()
   #expect(try await closed.next() == nil)
   #expect(await stale.sent().isEmpty)
@@ -632,5 +650,116 @@ struct WriteFailureSocket: KiteWebSocketConnection {
       ["a": "subscribe", "v": [257]] as NSDictionary,
       ["a": "mode", "v": ["full", [257]]] as NSDictionary,
     ])
+  await ticker.disconnect()
+}
+
+/// Reports physical overlap at the transport boundary, independently of ticker state.
+actor TeardownAuditTransport: KiteWebSocketTransport {
+  let old: CloseGateSocket
+  let fresh = ControlledSocket()
+  private var count = 0
+  init(_ old: CloseGateSocket) { self.old = old }
+  func connect(url: URL) async throws -> any KiteWebSocketConnection {
+    count += 1
+    if count == 1 { return old }
+    #expect(await old.isClosed(), "New connection admitted before physical teardown completed")
+    return fresh
+  }
+}
+
+@Test(.timeLimit(.minutes(1)))
+func recoveryAdmissionWaitsForPhysicalCloseAfterWriteFailure() async throws {
+  let old = CloseGateSocket(failWrites: true)
+  let transport = TeardownAuditTransport(old)
+  let time = RecoverySleeper()
+  let ticker = try KiteTicker(
+    apiKey: "key", accessToken: "old", transport: transport, sleeper: time)
+  var events = try await ticker.lifecycleEvents().makeAsyncIterator()
+  try await ticker.connect()
+  _ = try await events.next()
+  let writing = Task { try await ticker.subscribe([257]) }
+  var closing = old.closing.makeAsyncIterator()
+  _ = await closing.next()
+  var delays = time.delays.makeAsyncIterator()
+  _ = await delays.next()
+  await time.advance()
+  // Exercise public actor work while close is suspended. No wall-clock delay or private seam.
+  for _ in 0..<100 { try await ticker.setMode(.quote, for: [257]) }
+  await old.finishClose()
+  await #expect(throws: KiteTickerError.transport("Controlled write failure")) {
+    try await writing.value
+  }
+  #expect(try await events.next() == .possibleDataGap)
+  #expect(try await events.next() == .reconnected)
+  try await ticker.subscribe([513])
+  await ticker.disconnect()
+}
+
+@Test(.timeLimit(.minutes(1)), arguments: ["disconnect", "failure", "replacement"])
+func sessionTransitionsKeepDetachedCloseInAdmissionFence(transition: String) async throws {
+  let old = CloseGateSocket(failWrites: transition == "failure")
+  let transport = TeardownAuditTransport(old)
+  let ticker = try KiteTicker(
+    apiKey: "key", accessToken: "old", transport: transport, sleeper: RecoverySleeper())
+  try await ticker.connect()
+  let retiring = Task {
+    switch transition {
+    case "disconnect": await ticker.disconnect()
+    case "failure":
+      await #expect(throws: KiteTickerError.transport("Controlled write failure")) {
+        try await ticker.subscribe([257])
+      }
+    default:
+      await #expect(throws: CancellationError.self) {
+        try await ticker.replaceCredentials(apiKey: "key", accessToken: "superseded")
+      }
+    }
+  }
+  var closing = old.closing.makeAsyncIterator()
+  _ = await closing.next()
+  let entering = Task {
+    if transition == "disconnect" {
+      try await ticker.connect()
+    } else {
+      try await ticker.replaceCredentials(apiKey: "key", accessToken: "fresh")
+    }
+  }
+  // Public configuration/command work can continue while the physical socket is closing.
+  for _ in 0..<100 { _ = try await ticker.lifecycleEvents(bufferCapacity: 1) }
+  await old.finishClose()
+  await retiring.value
+  try await entering.value
+  try await ticker.subscribe([513])
+  #expect(await transport.fresh.sent().count >= 2)
+  await ticker.disconnect()
+}
+
+@Test(.timeLimit(.minutes(1)), arguments: [true, false])
+func lateHandshakeCloseFencesExplicitConnectionAfterDisconnect(lateSuccess: Bool) async throws {
+  let stale = CloseGateSocket()
+  let transport = HandshakeGate(audit: stale)
+  let ticker = try KiteTicker(apiKey: "key", accessToken: "old", transport: transport)
+  var requests = transport.requests.makeAsyncIterator()
+  let initial = Task { try await ticker.connect() }
+  _ = await requests.next()
+  await ticker.disconnect()
+  if lateSuccess {
+    await transport.complete(1, with: .success(stale))
+    var closing = stale.closing.makeAsyncIterator()
+    _ = await closing.next()
+  } else {
+    await transport.complete(1, with: .failure(.connectionClosed))
+    await stale.finishClose()  // No socket was returned; there is no physical resource to retire.
+  }
+  let entering = Task { try await ticker.connect() }
+  for _ in 0..<100 { _ = try await ticker.lifecycleEvents(bufferCapacity: 1) }
+  await stale.finishClose()
+  _ = await requests.next()
+  let fresh = ControlledSocket()
+  await transport.complete(2, with: .success(fresh))
+  await #expect(throws: CancellationError.self) { try await initial.value }
+  try await entering.value
+  try await ticker.subscribe([513])
+  #expect(await fresh.sent().count == 2)
   await ticker.disconnect()
 }
