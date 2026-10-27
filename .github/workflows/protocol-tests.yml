@@ -34,18 +34,32 @@ jobs:
     runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
-      - name: Select installed Swift 6.4 Xcode
+      - name: Install Swift 6.4
+        uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: '6.4.0'
+      - name: Select Swift toolchain for Xcode and SwiftPM
         shell: bash
         run: |
           set -euo pipefail
-          for app in /Applications/Xcode*.app; do
-            if DEVELOPER_DIR="$app/Contents/Developer" xcrun swift --version | grep -q 'Swift version 6.4'; then
-              echo "DEVELOPER_DIR=$app/Contents/Developer" >> "$GITHUB_ENV"
-              exit 0
-            fi
-          done
-          echo 'Swift 6.4 Xcode is required; this runner image has no matching installation.' >&2
-          exit 1
+          # setup-swift selects the compiler on PATH. xcodebuild also needs its
+          # bundle identifier, otherwise simulator tests use Xcode's older Swift.
+          toolchain_id=$(python3 - <<'PY'
+          import pathlib, plistlib, shutil
+          compiler = pathlib.Path(shutil.which("swift")).resolve()
+          bundle = next(parent for parent in compiler.parents if parent.suffix == ".xctoolchain")
+          metadata = bundle / "Info.plist"
+          if not metadata.exists():
+              metadata = bundle / "ToolchainInfo.plist"
+          with metadata.open("rb") as source:
+              values = plistlib.load(source)
+          print(values.get("CFBundleIdentifier") or values["Identifier"])
+          PY
+          )
+          echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
+          compiler_version=$(xcrun --toolchain "$toolchain_id" swift --version 2>&1)
+          echo "$compiler_version"
+          [[ "$compiler_version" == *"Swift version 6.4"* ]]
       - name: Record compiler and Xcode
         run: |
           swift --version

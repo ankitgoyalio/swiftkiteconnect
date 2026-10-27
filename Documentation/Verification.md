@@ -4,7 +4,14 @@ Updated 2026-10-27 after the [final review fixes](Review.md) for ticket #24 on m
 (`swiftlang-6.4.0.34.1`), Xcode 27.1 (`27A9275`). This record supersedes the old
 foundation-only verification page; historical slice evidence remains in
 `Documentation/Evidence/ticket-4-*` through `ticket-23-*` where present.
-**The complete #24 acceptance matrix is not achieved: Ubuntu has not run.**
+**The complete #24 acceptance matrix is not achieved: successful trusted TLS/WSS
+and authenticated sandbox checks remain open.**
+
+Hosted Ubuntu 24.04 with Swift 6.4 passed on published head `d1e3fe6`: 275 tests
+passed, one optional smoke skipped, including real local HTTP/WebSocket and TLS
+rejection. [Hosted evidence](Evidence/hosted-ubuntu.txt) records the exact job.
+The Apple job failed before tests because its image lacked Swift 6.4; CI now
+installs that toolchain explicitly and selects it for Xcode simulator builds.
 No 1.0 completeness, production qualification or remote trading success is claimed.
 
 | Check | Executed result / boundary | Durable evidence |
@@ -22,8 +29,8 @@ No 1.0 completeness, production qualification or remote trading success is claim
 | Snapshot integrity and mapping consistency | All 17 SHA-256 hashes and byte counts verified; independent 40 table rows + 2 prose routes, 178 headings; all 42 API/named-test/example mappings resolve | [inventory](Evidence/ticket-24-snapshot-inventory.json), [Coverage](Coverage.md) |
 | Public sandbox equity instrument smoke | Separately executed opt-in test passed: 10,093 NSE records via default HTTP; no authenticated session | [sandbox log](Evidence/ticket-24-sandbox.txt) |
 | Authenticated sandbox | **Not executed**: no user credentials/access token; remote endpoint, streaming and browser cases remain #27 | Residual list below |
-| Ubuntu 24.04 | **Not executed**: no existing Linux/container/VM runtime or Swift SDK installed on this host | [environment](Evidence/ticket-24-environment.txt) |
-| GitHub Actions | **Configured, not executed**: local workflow changes are unpublished; workflow OAuth scope blocked under #29 | [workflow](../.github/workflows/protocol-tests.yml) |
+| Ubuntu 24.04 | **Passed in hosted CI** on `d1e3fe6`: Swift 6.4, 275 tests passed, one skipped; real local HTTP/WebSocket and TLS rejection | [hosted evidence](Evidence/hosted-ubuntu.txt) |
+| GitHub Actions | Published after #29 authorization; Ubuntu passed. Apple failed at compiler selection; updated toolchain installation awaits rerun | [workflow](../.github/workflows/protocol-tests.yml) |
 | Strict Swift formatting / patch checks | Passed for changed Swift files and `git diff --check` | [checks](Evidence/review-checks.txt) |
 | Production API / live trades | No requests made | Sandbox-only verification policy |
 
@@ -81,14 +88,10 @@ focused WebSocket diagnostic, not the full matrix. The CI Ubuntu job invokes the
 full script and is configured to upload its log even on failure. Toolchain setup
 failure is a failed/blocked job, never a downgraded or fabricated Swift 6.4 pass.
 
-Docker, Podman, Colima/Lima, Tart, Multipass, QEMU and Orb executables were absent;
-`swift sdk list` was empty. No known existing Linux runtime was available to run.
-No expensive infrastructure was installed. Even a cross-compilation SDK would not
-supply actual Linux network execution. The NIO/WebSocketKit transport therefore
-remains an explicit provisional choice. Before Linux is advertised as qualified,
-run the real Ubuntu suite, retain its OS/compiler/network evidence, investigate
-failures and add successful verified TLS transport evidence. Apple loopback or
-fixture success cannot establish that compatibility.
+The original local qualification had no Linux runtime. Hosted execution has now
+passed on Ubuntu 24.04.5 with Swift 6.4, including the actual network tests. The
+adapter remains provisional for successful trusted TLS/WSS until that evidence
+is supplied; rejecting an untrusted peer is a separate check.
 
 ## Remote residuals — #27
 
@@ -115,9 +118,10 @@ without a production fallback:
 Fixture requests assert wire contracts, modeled values and error/lifecycle policy;
 they do not demonstrate broker/exchange acceptance or account availability.
 
-## Publication residual — #29
+## Publication — #29 resolved
 
-[#29](https://github.com/ankitgoyalio/swiftkiteconnect/issues/29) tracks the workflow
-OAuth scope block. The workflow is committed locally, not published or executed by
-this task. Root owns any push/PR/ticket lifecycle and final review. No push, PR,
-release tag, issue close or 1.0 declaration is part of this qualification work.
+[#29](https://github.com/ankitgoyalio/swiftkiteconnect/issues/29) is closed: the
+GitHub CLI credential now includes workflow scope and the complete integration
+branch is published on [PR #28](https://github.com/ankitgoyalio/swiftkiteconnect/pull/28).
+Earlier ticket evidence mentioning the publication block predates that approval.
+The PR remains draft while qualification is incomplete.

@@ -3,11 +3,11 @@
 An unofficial Swift SDK for Kite Connect v3. **Partial 0.x; not a qualified 1.0
 release.** The package implements the selected 2026-10-27 snapshot's 42 REST
 method/route contracts, typed streaming, postback validation and Publisher guidance.
-Linux transport qualification and authenticated sandbox evidence remain incomplete.
+Successful trusted WSS and authenticated sandbox evidence remain incomplete.
 
-Requires Swift 6.4, iOS 18+ or macOS 15+. Ubuntu 24.04 is the intended Linux target;
-its CI job is configured but has not run. The explicit SwiftNIO/WebSocketKit adapter
-remains provisional until real Linux transport checks pass.
+Requires Swift 6.4, iOS 18+ or macOS 15+. The Ubuntu 24.04 CI suite has passed,
+including real HTTP/WebSocket checks. The SwiftNIO/WebSocketKit adapter remains
+provisional until successful trusted TLS/WSS is verified.
 
 Add this repository as a SwiftPM dependency and select the `KiteConnect` product.
 The module is `KiteConnect`. A minimal sandbox read with an app-provided token:
@@ -55,5 +55,5 @@ On this macOS host select full Xcode with
 `env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test`.
 Run iOS with `env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/test-ios.sh`.
 [Verification](Documentation/Verification.md) provides the Ubuntu path and explicit
-remaining blockers [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27)
-and [#29](https://github.com/ankitgoyalio/swiftkiteconnect/issues/29).
+remaining credential-dependent cases in
+[#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27).

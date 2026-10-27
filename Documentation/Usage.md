@@ -353,7 +353,8 @@ result. Recovery delay alone does not release that fence. Custom transports must
 honor cancellation and complete close; an uncooperative transport holds admission
 until its handshake/close settles. Disconnect cancels recovery and closes streams. Register new streams after disconnect if connecting again. REST and ticker
 credentials do not update each other. Reconcile missed orders through REST.
-`NIOKiteWebSocketTransport` is provisional until real Ubuntu tests run; TLS uses
+`NIOKiteWebSocketTransport` passed real Ubuntu HTTP/WebSocket tests and remains
+provisional for successful trusted WSS; TLS uses
 default certificate/hostname verification with no insecure switch.
 
 ## Incoming postbacks and Publisher
