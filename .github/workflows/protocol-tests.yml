@@ -42,12 +42,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          # setup-swift selects the compiler on PATH. xcodebuild also needs its
-          # bundle identifier, otherwise simulator tests use Xcode's older Swift.
+          # Swiftly's PATH entry is a launcher, not the compiler bundle.
+          # Use its installed location so xcodebuild selects the same toolchain.
           toolchain_id=$(python3 - <<'PY'
-          import pathlib, plistlib, shutil
-          compiler = pathlib.Path(shutil.which("swift")).resolve()
-          bundle = next(parent for parent in compiler.parents if parent.suffix == ".xctoolchain")
+          import pathlib, plistlib, subprocess
+          bundle = pathlib.Path(subprocess.check_output(
+              ["swiftly", "use", "--print-location"], text=True).strip())
           metadata = bundle / "Info.plist"
           if not metadata.exists():
               metadata = bundle / "ToolchainInfo.plist"
