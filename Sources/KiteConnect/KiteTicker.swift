@@ -23,6 +23,7 @@ public enum KiteTickerError: Error, Sendable, Equatable {
   case notConnected
   case alreadyConnected
   case operationInProgress
+  case malformedText
   case malformedPacket
   case unsupportedPacketLength(Int)
   case bufferOverflow
@@ -39,6 +40,11 @@ public struct KiteLTPTick: Sendable, Equatable {
 /// One explicit WebSocket owner. No automatic reconnect or replay.
 public actor KiteTicker {
   private let url: URL
+  private let tradingTimeZone: TimeZone
+  private var brokerSubscribers:
+    [UUID: AsyncThrowingStream<KiteBrokerEvent, any Error>.Continuation] = [:]
+  private var orderSubscribers:
+    [UUID: AsyncThrowingStream<KiteOrderUpdateEvent, any Error>.Continuation] = [:]
   private let transport: any KiteWebSocketTransport
   private var connection: (any KiteWebSocketConnection)?
   private var receiver: Task<Void, Never>?
@@ -54,7 +60,8 @@ public actor KiteTicker {
   public init(
     apiKey: String, accessToken: String, userID: String? = nil,
     endpoint: URL = URL(string: "wss://ws.kite.trade")!,
-    transport: any KiteWebSocketTransport
+    transport: any KiteWebSocketTransport,
+    tradingTimeZone: TimeZone = TimeZone(identifier: "Asia/Kolkata")!
   ) throws {
     guard !apiKey.isEmpty, !accessToken.isEmpty,
       var parts = URLComponents(url: endpoint, resolvingAgainstBaseURL: false),
@@ -77,6 +84,7 @@ public actor KiteTicker {
       of: "+", with: "%2B")
     self.url = parts.url!
     self.transport = transport
+    self.tradingTimeZone = tradingTimeZone
   }
 
   /// Each call creates an independent bounded subscriber. Overflow ends only that subscriber.
@@ -105,6 +113,37 @@ public actor KiteTicker {
       bufferingPolicy: .bufferingOldest(bufferCapacity))
     marketSubscribers[id] = continuation
     continuation.onTermination = { [weak self] _ in Task { await self?.removeMarketSubscriber(id) }
+    }
+    return stream
+  }
+
+  /// Each call has a bounded buffer independent of all market-data subscribers.
+  public func orderUpdates(bufferCapacity: Int = 256) throws -> AsyncThrowingStream<
+    KiteOrderUpdateEvent, any Error
+  > {
+    guard bufferCapacity > 0 else {
+      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    }
+    let id = UUID()
+    let (stream, continuation) = AsyncThrowingStream<KiteOrderUpdateEvent, any Error>.makeStream(
+      bufferingPolicy: .bufferingOldest(bufferCapacity))
+    orderSubscribers[id] = continuation
+    continuation.onTermination = { [weak self] _ in Task { await self?.removeOrderSubscriber(id) } }
+    return stream
+  }
+
+  /// Broker notices and errors have their own per-subscriber bounded capacity.
+  public func brokerEvents(bufferCapacity: Int = 64) throws -> AsyncThrowingStream<
+    KiteBrokerEvent, any Error
+  > {
+    guard bufferCapacity > 0 else {
+      throw KiteTickerError.invalidConfiguration("Buffer capacity must be positive")
+    }
+    let id = UUID()
+    let (stream, continuation) = AsyncThrowingStream<KiteBrokerEvent, any Error>.makeStream(
+      bufferingPolicy: .bufferingOldest(bufferCapacity))
+    brokerSubscribers[id] = continuation
+    continuation.onTermination = { [weak self] _ in Task { await self?.removeBrokerSubscriber(id) }
     }
     return stream
   }
@@ -241,6 +280,10 @@ public actor KiteTicker {
     for continuation in current { continuation.finish() }
     for continuation in marketSubscribers.values { continuation.finish() }
     marketSubscribers.removeAll()
+    for continuation in brokerSubscribers.values { continuation.finish() }
+    brokerSubscribers.removeAll()
+    for continuation in orderSubscribers.values { continuation.finish() }
+    orderSubscribers.removeAll()
     await socket?.close()
   }
 
@@ -256,6 +299,8 @@ public actor KiteTicker {
       ]),
       as: UTF8.self)
   }
+  private func removeBrokerSubscriber(_ id: UUID) { brokerSubscribers.removeValue(forKey: id) }
+  private func removeOrderSubscriber(_ id: UUID) { orderSubscribers.removeValue(forKey: id) }
   private func removeMarketSubscriber(_ id: UUID) { marketSubscribers.removeValue(forKey: id) }
   private func removeSubscriber(_ id: UUID) { subscribers.removeValue(forKey: id) }
   private func failed(_ error: any Error, epoch: UUID) async {
@@ -270,11 +315,45 @@ public actor KiteTicker {
     subscribers.removeAll()
     for continuation in marketSubscribers.values { continuation.finish(throwing: error) }
     marketSubscribers.removeAll()
+    for continuation in brokerSubscribers.values { continuation.finish(throwing: error) }
+    brokerSubscribers.removeAll()
+    for continuation in orderSubscribers.values { continuation.finish(throwing: error) }
+    orderSubscribers.removeAll()
     await socket?.close()
   }
   private func receive(_ message: KiteWebSocketMessage, epoch: UUID) throws {
     guard epoch == generation else { return }
-    // Text events are outside #18. Their typed channel follows in #20.
+    if case .text(let text) = message {
+      do {
+        let event = try KiteTimestamp.decoder(timeZone: tradingTimeZone).decode(
+          KiteTextEvent.self, from: Data(text.utf8))
+        switch event {
+        case .order(let order):
+          for (id, continuation) in orderSubscribers {
+            switch continuation.yield(order) {
+            case .dropped:
+              continuation.finish(throwing: KiteTickerError.bufferOverflow)
+              orderSubscribers.removeValue(forKey: id)
+            case .terminated: orderSubscribers.removeValue(forKey: id)
+            case .enqueued: break
+            @unknown default: break
+            }
+          }
+        case .broker(let event):
+          for (id, continuation) in brokerSubscribers {
+            switch continuation.yield(event) {
+            case .dropped:
+              continuation.finish(throwing: KiteTickerError.bufferOverflow)
+              brokerSubscribers.removeValue(forKey: id)
+            case .terminated: brokerSubscribers.removeValue(forKey: id)
+            case .enqueued: break
+            @unknown default: break
+            }
+          }
+        }
+      } catch { throw KiteTickerError.malformedText }
+      return
+    }
     guard case .binary(let data) = message else { return }
     let ticks = try Self.decode(data)
     for tick in ticks {
