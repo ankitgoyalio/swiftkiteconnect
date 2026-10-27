@@ -1,13 +1,18 @@
 name: Protocol tests
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
+concurrency:
+  group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
   ubuntu:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: swift-actions/setup-swift@v3
@@ -31,47 +36,31 @@ jobs:
           include-hidden-files: true
           if-no-files-found: ignore
   apple:
-    runs-on: macos-26
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
-      - name: Install Swift 6.4
-        uses: swift-actions/setup-swift@v3
-        with:
-          swift-version: '6.4.0'
-      - name: Select Swift toolchain for Xcode and SwiftPM
+      - name: Verify native Xcode and Swift toolchain
         shell: bash
         run: |
           set -euo pipefail
-          # Swiftly's PATH entry is a launcher, not the compiler bundle.
-          # Use its installed location so xcodebuild selects the same toolchain.
-          toolchain_id=$(python3 - <<'PY'
-          import pathlib, plistlib, subprocess
-          bundle = pathlib.Path(subprocess.check_output(
-              ["swiftly", "use", "--print-location"], text=True).strip())
-          metadata = bundle / "Info.plist"
-          if not metadata.exists():
-              metadata = bundle / "ToolchainInfo.plist"
-          with metadata.open("rb") as source:
-              values = plistlib.load(source)
-          print(values.get("CFBundleIdentifier") or values["Identifier"])
-          PY
-          )
-          echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
-          compiler_version=$(xcrun --toolchain "$toolchain_id" swift --version 2>&1)
+          xcodebuild -version
+          compiler_version=$(xcrun swift --version 2>&1)
           echo "$compiler_version"
           [[ "$compiler_version" == *"Swift version 6.4"* ]]
-      - name: Record compiler and Xcode
-        run: |
-          swift --version
-          xcodebuild -version
+          xcrun swift package dump-package > /dev/null
       - name: Documentation integrity and offline Publisher examples
         run: |
           python3 Scripts/audit-snapshot.py
           python3 Scripts/check-documentation-examples.py
           node --test Documentation/Publisher.test.cjs
       - name: macOS public protocol and real loopback HTTP tests
+        timeout-minutes: 15
         run: swift test
       - name: iOS Simulator public protocol and real loopback HTTP tests
+        timeout-minutes: 25
         run: bash Scripts/test-ios.sh
       - uses: actions/upload-artifact@v4
         if: always()
