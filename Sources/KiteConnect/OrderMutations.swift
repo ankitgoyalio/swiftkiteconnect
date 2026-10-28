@@ -111,7 +111,11 @@ public struct KiteOrderMutationReceipt: Decodable, Sendable, Equatable {
         case children
     }
 
-    /// Decodes KiteOrderMutationReceipt from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes a nonblank order ID and any child slice results; malformed children fail the receipt.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for a missing or blank order ID. Children may be
+    ///   absent, but a present children field must be a valid array, not null.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         orderID = try container.decode(String.self, forKey: .orderID)
@@ -132,7 +136,11 @@ public enum KiteOrderPlacementResult: Decodable, Sendable, Equatable {
     case order(KiteOrderMutationReceipt)
     /// An auto-slice acknowledgement array; inspect every placed and rejected result.
     case slices([KiteOrderSliceResult])
-    /// Decodes KiteOrderPlacementResult from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes either a slice-result array or an object receipt without inventing partial results.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error when neither the complete slice array nor a valid
+    ///   object receipt decodes. No partial acknowledgement is returned.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if let slices = try? container.decode([KiteOrderSliceResult].self) {

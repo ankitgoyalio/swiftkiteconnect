@@ -34,3 +34,5 @@ A canceled authentication request throws `CancellationError` without installing 
 - ``KiteSessionCredentials``
 - ``KiteSessionRenewal``
 - ``KiteUserProfile``
+
+See <doc:Request-and-response-contracts> for the shared reference and <doc:First-request> for the introductory read-only tutorial.

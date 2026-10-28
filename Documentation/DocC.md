@@ -13,8 +13,7 @@ On a toolchain with `swift` and `docc` on `PATH`, run:
 python3 Scripts/build-documentation.py
 ```
 
-The command extracts the public symbol graph with SwiftPM, audits completed
-coverage slices, and converts the catalog with warnings treated as errors.
+The command extracts the public symbol graph with SwiftPM, requires comments on every authored public declaration, and converts the catalog with warnings treated as errors.
 It checks generated direct routes, internal references, renderer assets, and the
 navigation/search index. The static artifact is
 `.build/documentation/KiteConnect.doccarchive`. The hosting base path is empty
@@ -42,42 +41,53 @@ swift test
 node --test Tests/Publisher.test.cjs
 ```
 
-The extractor retains the README and Usage.md examples during migration. It also
-reads DocC articles, tutorial markup, and the referenced Swift tutorial resources.
+The extractor reads every DocC article, tutorial markup, and referenced Swift
+tutorial resource, as well as any README and Usage pointer-page Swift blocks.
+Keep executable snippets in fenced `swift` blocks; do not use an alternate fence
+label to bypass compilation. Fenced Swift examples in triple-slash declaration comments also enter extraction.
+Use triple-slash comments for executable symbol examples.
 The generated test source compiles against the public SDK. Existing controlled
 HTTP and WebSocket tests supply behavioral evidence without live credentials or
 trading requests. Generated examples are not executed against Kite.
 
-## Extend declaration coverage
+## Review complete declaration coverage
 
-Review `.build/documentation/public-api-inventory.json` after a site build.
-The inventory records each authored public declaration's identifier, path, kind,
-comment presence, and inclusion in completed slices. Compiler-synthesized members
-are excluded. Add completed slices to [DocCCoverage.json](DocCCoverage.json) using
-symbol graph paths. A removed declaration or a missing summary in a completed
-slice fails the build. New slices must add their declarations before completion.
+Every routine site build requires documentation on every authored public declaration,
+including shared protocols, value helpers, cases, initializers, and members.
+The audit excludes compiler-synthesized members and writes
+`.build/documentation/public-api-inventory.json`. Its comment-presence check is a
+minimum requirement, not a semantic score. No slice can waive complete coverage.
 
-Slice #31 covers `KiteConfiguration`, its public members, `KiteClient`, its two
-initializers, and its public configuration and API key. Endpoint methods and other
-models remain for later slices. Slice #38 migrates Publisher browser guidance and
-its offline examples. Its declaration list is empty because Publisher has no
-Swift API. The linked authentication and order declarations belong to their
-respective slices. Review descriptions for useful behavior,
-parameters, errors, and constraints. A comment-length check cannot judge meaning.
+After API or documentation changes, review the generated inventory and the affected
+source comments against implementation and fixture-backed protocol tests. Check
+behavior, each parameter, return values, errors, cancellation, units, nil versus
+zero, unknown values, and request constraints where applicable. Reject summaries
+that merely repeat a declaration's name. A generated symbol page and a warning-free
+build do not establish useful documentation.
 
-For final delivery, require every declaration to have documentation:
+[DocCCoverage.json](DocCCoverage.json) and its separate slice manifests retain the
+explicit targets from earlier slices. Removed targets fail even when the remaining
+API is documented. All newly added declarations are required automatically; no
+manifest update is needed to activate that requirement. `--require-complete` remains
+accepted for existing commands, but complete coverage is always enforced.
 
-```fish
-python3 Scripts/check-documentation-coverage.py .build/documentation/symbols --require-complete
-```
+Keep each authored file below 20,000 bytes. Split a source file only when the size
+limit requires it, retain creation metadata, and register any new coverage manifest
+in `Scripts/check-documentation.py`.
 
-The foundation's slice policy does not waive the complete-coverage requirement
-in ADR-0013. CI uploads generated output as an artifact and never publishes it.
-Keep canonical authored sources in Git. Do not commit `.doccarchive` output.
+## Prepare the root-hosted artifact
 
-Large completed slices can use separate JSON arrays listed in the `sliceFiles`
-object of `DocCCoverage.json`. The audit loads these files together with inline
-slices and rejects duplicate slice names. Register each new file in
-`Scripts/check-documentation.py`. Keep each authored file below 20,000 bytes.
-The [orders, GTT, and alerts slice](DocCCoverageOrders.json) uses this layout
-to preserve every explicit declaration target.
+The build uses DocC's static-hosting transform without a hosting base path. Serve
+all archive contents at the domain root. The package landing route is
+`/documentation/kiteconnect/`; tutorial routes start at `/tutorials/`. Preserve the
+`data`, `index`, `js`, `css`, `images`, and `downloads` directories when present.
+Do not add a repository-name prefix. The offline site check verifies generated
+page routes, reference targets, tutorial resources, renderer assets, and searchable
+navigation targets. Direct routes each contain an `index.html` for reloads.
+
+CI validates pull requests and uploads the archive without publishing. Issue
+[#40](https://github.com/ankitgoyalio/swiftkiteconnect/issues/40) owns the Pages
+workflow, root landing behavior, DNS, custom domain, HTTPS, and live reload checks.
+Before deployment, run the commands above and the existing Apple and Ubuntu
+qualification jobs. Do not infer live hosting or authenticated trading qualification
+from an offline archive check. Keep generated output and raw logs outside Git.

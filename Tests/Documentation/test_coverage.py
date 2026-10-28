@@ -8,6 +8,32 @@ import unittest
 
 
 class CoverageDeliveryTests(unittest.TestCase):
+    def test_routine_audit_rejects_undocumented_declarations_outside_slices(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for folder in ('Scripts', 'Documentation', 'symbols'):
+                (root / folder).mkdir()
+            script = Path(__file__).resolve().parents[2] / 'Scripts/check-documentation-coverage.py'
+            shutil.copy(script, root / 'Scripts')
+            (root / 'Documentation/DocCCoverage.json').write_text('{"completedSlices": {}}')
+            symbol = {
+                'identifier': {'precise': 'helper'}, 'pathComponents': ['SharedHelper'],
+                'kind': {'identifier': 'swift.struct'},
+                'location': {'uri': 'file:///Helper.swift'},
+            }
+            graph = root / 'symbols/KiteConnect.symbols.json'
+            graph.write_text(json.dumps({'symbols': [symbol]}))
+            command = ['python3', str(root / 'Scripts/check-documentation-coverage.py'),
+                       str(root / 'symbols')]
+            missing = subprocess.run(command, capture_output=True, text=True)
+            self.assertNotEqual(missing.returncode, 0)
+            self.assertIn('SharedHelper: missing meaningful documentation', missing.stderr)
+            symbol['docComment'] = {'lines': [{'text':
+                'Preserves an unfamiliar server value without rejecting a valid response.'}]}
+            graph.write_text(json.dumps({'symbols': [symbol]}))
+            documented = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(documented.returncode, 0, documented.stderr)
+
     def test_separate_slice_requires_its_declaration_comment(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

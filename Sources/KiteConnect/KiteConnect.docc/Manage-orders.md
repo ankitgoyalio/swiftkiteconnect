@@ -137,3 +137,33 @@ See <doc:Trading-mutation-outcomes> before deciding whether to act after an erro
 - ``KiteOrderSliceResult``
 - ``KiteOrderSliceRejection``
 - ``KiteOrderMutationJSONValue``
+
+## Inspect a controlled order lifecycle
+
+This example compiles independent placement, modification, and cancellation calls for controlled transports. Inspect current state before each mutation; do not run the function as an automatic trading strategy.
+
+```swift
+func inspectOrder(client: KiteClient, orderID: String) async throws {
+	_ = try await client.orders()
+	_ = try await client.orderHistory(orderID: orderID)
+	_ = try await client.trades()
+	_ = try await client.orderTrades(orderID: orderID)
+}
+
+func controlledOrderLifecycle(client: KiteClient, price: Decimal, orderID: String) async throws {
+	var order = KiteOrderPlacement(
+		tradingSymbol: "INFY", exchange: .nse, transactionType: .buy,
+		orderType: .limit, quantity: 1, product: .cnc)
+	order.price = price
+	order.tag = "example24"
+	let result = try await client.placeOrder(order)
+	switch result {
+	case .order(let receipt): print(receipt.orderID)
+	case .slices(let slices): print(slices)  // Inspect every placed/rejected slice.
+	}
+	var changes = KiteOrderModification()
+	changes.price = price
+	_ = try await client.modifyOrder(orderID: orderID, changes: changes)
+	_ = try await client.cancelOrder(orderID: orderID)
+}
+```

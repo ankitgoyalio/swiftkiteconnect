@@ -68,3 +68,40 @@ For a holding sale, use SELL and the application-selected available quantity. A 
 - ``KiteAuctionHolding``
 - ``KitePosition``
 - ``KitePositionConversion``
+
+## Prepare portfolio operations
+
+Supply application-owned inputs and a configured client. These functions compile against the public SDK; routine verification does not call remote services.
+
+```swift
+func portfolioReads(client: KiteClient) async throws {
+	_ = try await client.holdings()
+	_ = try await client.auctionHoldings()
+	_ = try await client.positions()
+}
+
+func controlledConversion(client: KiteClient, conversion: KitePositionConversion) async throws {
+	_ = try await client.convertPosition(conversion)
+}
+
+func prepareHoldingsAuthorisation(client: KiteClient, isin: String, quantity: Int64) async throws
+	-> KiteHoldingsAuthorisationFlow
+{
+	let receipt = try await client.authoriseHoldings(instruments: [
+		.init(isin: isin, quantity: quantity)
+	])
+	return try client.holdingsAuthorisationFlow(requestID: receipt.requestID)
+}
+
+func submitPositionExit(client: KiteClient, position: KitePosition, limitPrice: Decimal)
+	async throws -> KiteOrderPlacementResult?
+{
+	guard let quantity = Int64(exactly: position.quantity.magnitude), quantity > 0 else { return nil }
+	var order = KiteOrderPlacement(
+		tradingSymbol: position.tradingSymbol, exchange: position.exchange,
+		transactionType: position.quantity > 0 ? .sell : .buy,
+		orderType: .limit, quantity: quantity, product: position.product)
+	order.price = limitPrice
+	return try await client.placeOrder(order)
+}
+```

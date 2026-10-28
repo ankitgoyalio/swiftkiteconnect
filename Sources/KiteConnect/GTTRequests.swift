@@ -33,7 +33,11 @@ public struct KiteGTTConditionRequest: Encodable, Sendable, Equatable {
         case lastPrice = "last_price"
     }
 
-    /// Encodes the instrument as exchange and tradingsymbol fields with the remaining GTT definition values.
+    /// Encodes the instrument as exchange and tradingsymbol fields with the GTT definition.
+    ///
+    /// - Parameter encoder: The destination encoder for the embedded definition.
+    /// - Throws: Any error raised while encoding the fields. Structural validation
+    ///   belongs to submission, so encoding alone does not prove a valid GTT request.
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(instrument.exchange, forKey: .exchange)
@@ -87,7 +91,11 @@ public struct KiteGTTOrderRequest: Encodable, Sendable, Equatable {
         case product, price
     }
 
-    /// Encodes the instrument as exchange and tradingsymbol fields with the remaining GTT definition values.
+    /// Encodes the instrument as exchange and tradingsymbol fields with the GTT definition.
+    ///
+    /// - Parameter encoder: The destination encoder for the embedded definition.
+    /// - Throws: Any error raised while encoding the fields. Structural validation
+    ///   belongs to submission, so encoding alone does not prove a valid GTT request.
     public func encode(to encoder: any Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(instrument.exchange, forKey: .exchange)
@@ -175,7 +183,11 @@ public struct KiteGTTReceipt: Decodable, Sendable, Equatable {
     public let triggerID: Int64
     enum CodingKeys: String, CodingKey { case triggerID = "trigger_id" }
 
-    /// Decodes KiteGTTReceipt from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes a positive trigger ID; zero and negative acknowledgement IDs fail.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         triggerID = try values.decode(Int64.self, forKey: .triggerID)

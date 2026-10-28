@@ -14,7 +14,9 @@ public enum KiteGTTType: KiteStringValue {
     case twoLeg
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "single": self = .single
@@ -51,7 +53,9 @@ public enum KiteGTTStatus: KiteStringValue {
     case deleted
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "active": self = .active
@@ -88,7 +92,9 @@ public enum KiteGTTOrderResultStatus: KiteStringValue {
     case failed
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "success": self = .success

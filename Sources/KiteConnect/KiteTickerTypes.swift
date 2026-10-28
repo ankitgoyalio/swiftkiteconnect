@@ -21,6 +21,8 @@ public protocol KiteWebSocketConnection: Sendable {
     var messages: AsyncThrowingStream<KiteWebSocketMessage, any Error> { get }
     /// Sends one text command or throws a transport or cancellation error.
     /// - Parameter text: The complete JSON command to send.
+    /// - Throws: A transport error if submission fails, or a cancellation error.
+    ///   A failed write can leave server subscription state uncertain.
     func send(text: String) async throws
     /// Releases the socket and finishes messages. Must complete cleanup before returning.
     func close() async
@@ -31,6 +33,8 @@ public protocol KiteWebSocketTransport: Sendable {
     /// Opens an independent socket or throws a handshake, transport, or cancellation error.
     /// - Parameter url: The WebSocket URL, including application-supplied credentials.
     /// - Returns: A connection whose lifetime belongs to the caller.
+    /// - Throws: A handshake, transport, or cancellation error. A cancelled handshake
+    ///   must release any socket it creates before subsequent admission can proceed.
     func connect(url: URL) async throws -> any KiteWebSocketConnection
 }
 

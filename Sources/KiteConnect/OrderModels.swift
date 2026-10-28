@@ -38,7 +38,9 @@ public enum KiteOrderStatus: KiteStringValue {
     case update
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "OPEN": self = .open
@@ -89,7 +91,9 @@ public enum KiteTransactionType: KiteStringValue {
     case sell
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "BUY": self = .buy
@@ -118,7 +122,9 @@ public enum KiteOrderValidity: KiteStringValue {
     case timeToLive
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "DAY": self = .day
@@ -153,7 +159,9 @@ public enum KiteOrderVariety: KiteStringValue {
     case auction
     /// An unfamiliar server value retained with its original wire string.
     case unknown(String)
-    /// Creates a known case from its exact wire string, preserving any unfamiliar value unchanged.
+    /// Maps exact server spellings to known cases without rejecting unfamiliar values.
+    ///
+    /// - Parameter rawValue: Case-sensitive wire text; unknown values remain unchanged.
     public init(rawValue: String) {
         switch rawValue {
         case "regular": self = .regular

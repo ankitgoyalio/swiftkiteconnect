@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class TutorialNavigation(unittest.TestCase):
-    def check_archive(self, *, missing_page=False, missing_overview=False):
+    def check_archive(self, *, missing_page=False, missing_overview=False, broken_search=False, missing_root=False):
         with tempfile.TemporaryDirectory() as directory:
             archive = Path(directory)
             routes = [
@@ -17,6 +17,7 @@ class TutorialNavigation(unittest.TestCase):
                 'documentation/kiteconnect/create-a-client',
                 'documentation/kiteconnect/kiteconfiguration',
                 'documentation/kiteconnect/kiteclient',
+                'documentation/kiteconnect/request-and-response-contracts',
                 'tutorials/kiteconnect/first-request',
             ]
             if not missing_overview:
@@ -25,8 +26,13 @@ class TutorialNavigation(unittest.TestCase):
                 path = archive / route / 'index.html'
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text('<html></html>')
+            if not missing_root:
+                (archive / 'index.html').write_text('<html></html>')
             (archive / 'index').mkdir()
-            (archive / 'index/index.json').write_text('{}')
+            (archive / 'index/index.json').write_text(json.dumps({
+                'interfaceLanguages': {'swift': [{'path':
+                    '/documentation/missing-search-result' if broken_search
+                    else '/documentation/kiteconnect'}]}}))
             (archive / 'data').mkdir()
             overview = 'doc://example/tutorials/Getting-started'
             chapter = overview + '/Authenticate-and-read-a-profile'
@@ -50,6 +56,16 @@ class TutorialNavigation(unittest.TestCase):
     def test_native_chapter_breadcrumb_resolves_through_overview(self):
         result = self.check_archive()
         self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_root_hosting_requires_a_renderer_entry_page(self):
+        result = self.check_archive(missing_root=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('Missing root renderer', result.stderr)
+
+    def test_search_result_requires_a_direct_static_route(self):
+        result = self.check_archive(broken_search=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('/documentation/missing-search-result', result.stderr)
 
     def test_missing_article_is_still_rejected(self):
         result = self.check_archive(missing_page=True)

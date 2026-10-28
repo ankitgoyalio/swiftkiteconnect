@@ -68,7 +68,11 @@ public struct KiteAlert: Decodable, Sendable, Equatable {
         case basket
     }
 
-    /// Decodes KiteAlert from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes a lifecycle record with a nonempty UUID and optional ATO basket.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(KiteAlertType.self, forKey: .type)

@@ -32,3 +32,5 @@ Unfamiliar response classifications retain their original strings. Required malf
 - <doc:Inspect-and-convert-portfolio>
 - <doc:Authorise-holding-sales>
 - <doc:Read-mutual-fund-information>
+
+See <doc:Request-and-response-contracts> for the shared reference and <doc:First-request> for the introductory read-only tutorial.

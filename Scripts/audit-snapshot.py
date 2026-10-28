@@ -69,9 +69,10 @@ contracts = set()
 for row in route_rows:
     method, route = re.fullmatch(r"(GET|POST|PUT|DELETE) `(.+)`", row[1]).groups()
     contracts.add((method, route))
-    implementation = re.search(r"\]\((\.\./Sources/[^)]+)\): `([^`]+)`", row[2])
-    source = (root / "Documentation" / implementation[1]).read_text()
-    for symbol in re.findall(r"(\w+)\(", implementation[2]):
+    source_paths = re.findall(r"\]\((\.\./Sources/[^)]+)\)", row[2])
+    source = "\n".join((root / "Documentation" / path).read_text() for path in source_paths)
+    implementation = re.search(r": `([^`]+)`", row[2])
+    for symbol in re.findall(r"(\w+)\(", implementation[1]):
         if f"func {symbol}(" not in source:
             sys.exit(f"Missing implementation symbol: {symbol} for {route}")
     test_paths = re.findall(r"\]\((\.\./Tests/[^)]+)\)", row[3])

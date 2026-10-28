@@ -33,6 +33,8 @@ public struct KiteTickerReconnectPolicy: Sendable {
 public protocol KiteTickerSleeper: Sendable {
     /// Waits for the recovery delay and throws when cancelled.
     /// - Parameter delay: Positive duration requested by the reconnect policy.
+    /// - Throws: CancellationError when the waiting task is cancelled; custom sleepers
+    ///   must promptly release cancelled waits.
     func sleep(for delay: Duration) async throws
 }
 
@@ -42,6 +44,7 @@ public struct KiteTickerContinuousSleeper: KiteTickerSleeper {
     public init() {}
     /// Suspends for the requested duration or throws on task cancellation.
     /// - Parameter delay: Duration before the next reconnect attempt.
+    /// - Throws: CancellationError if the waiting task is cancelled.
     public func sleep(for delay: Duration) async throws {
         try await Task.sleep(for: delay)
     }

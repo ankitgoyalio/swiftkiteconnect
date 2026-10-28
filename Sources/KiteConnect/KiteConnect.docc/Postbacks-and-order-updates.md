@@ -30,3 +30,5 @@ These contracts describe the partial 0.x development SDK. Offline fixtures verif
 - ``KitePostback``
 - ``KitePostbackError``
 - ``KitePostbacks``
+
+See <doc:Request-and-response-contracts> for the shared reference and <doc:First-request> for the introductory read-only tutorial.

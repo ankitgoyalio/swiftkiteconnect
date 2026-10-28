@@ -61,3 +61,20 @@ Calculations do not place orders. The SDK checks request structure, while Kite d
 - ``KiteCalculatedBasketMargins``
 - ``KiteCompactBasketMargins``
 - ``KiteCalculationCharges``
+
+## Estimate supplied order lists
+
+Supply hypothetical order definitions to compare full and compact estimates. These calls do not submit orders.
+
+```swift
+func estimates(client: KiteClient, orders: [KiteMarginOrder], charges: [KiteChargeOrder])
+	async throws
+{
+	_ = try await client.orderMargins(orders)
+	_ = try await client.compactOrderMargins(orders)
+	_ = try await client.basketMargins(orders, considerPositions: true)
+	_ = try await client.compactBasketMargins(orders, considerPositions: false)
+	_ = try await client.orderCharges(charges)
+}
+
+```

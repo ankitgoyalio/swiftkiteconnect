@@ -79,3 +79,14 @@ The repository's fixture-backed postback checks exercise these limits, malformed
 - ``KitePostbacks``
 - ``KitePostback``
 - ``KitePostbackError``
+
+## Validate a backend request body
+
+Supply application-owned inputs and a configured client. These functions compile against the public SDK; routine verification does not call remote services.
+
+```swift
+// Backend HTTP handler: your server supplies the raw JSON body and stored secret.
+func validatePostback(body: Data, apiSecret: String) throws -> KitePostback {
+	try KitePostbacks.decode(body, apiSecret: apiSecret)
+}
+```

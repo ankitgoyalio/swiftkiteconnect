@@ -20,3 +20,17 @@ Pass the access token supplied by your application's authentication flow. Constr
 Use ``KiteClient/init(apiKey:accessToken:configuration:transport:)`` for explicit credentials. Use ``KiteClient/init(session:configuration:transport:)`` when your application already has ``KiteSessionCredentials``. Both initializers accept a configuration and a replaceable HTTP transport.
 
 For a custom origin or timeout, use ``KiteConfiguration/init(baseURL:routePrefix:timeout:tradingTimeZone:)``. The configuration validates the origin, route prefix, and timeout before constructing the client.
+
+## Confirm a sandbox profile request
+
+Call this read-only function with the access token supplied by your application. For installation and authentication steps, follow <doc:First-request>.
+
+```swift
+import KiteConnect
+
+func readProfile(accessToken: String) async throws -> KiteUserProfile {
+	let client = try KiteClient(
+		apiKey: "sandboxdemo", accessToken: accessToken, configuration: .sandbox)
+	return try await client.profile()
+}
+```

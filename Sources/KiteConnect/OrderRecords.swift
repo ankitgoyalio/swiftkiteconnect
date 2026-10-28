@@ -54,7 +54,7 @@ public struct KiteOrder: Decodable, Sendable, Equatable {
         update.variety
     }
 
-    /// The buy or sell direction of the embedded or standalone order.
+    /// The reported buy or sell direction, retaining unfamiliar server values.
     public var transactionType: KiteTransactionType {
         update.transactionType
     }
@@ -69,12 +69,12 @@ public struct KiteOrder: Decodable, Sendable, Equatable {
         update.product
     }
 
-    /// The order lifetime instruction reported or submitted to Kite.
+    /// The reported order lifetime instruction, retaining unfamiliar server values.
     public var validity: KiteOrderValidity {
         update.validity
     }
 
-    /// The order quantity in instrument units; submitted quantities must be positive.
+    /// The nonnegative order quantity reported by Kite, without recomputing it from fills.
     public var quantity: Int64 {
         update.quantity
     }
@@ -109,7 +109,7 @@ public struct KiteOrder: Decodable, Sendable, Equatable {
         update.triggerPrice
     }
 
-    /// The average execution or market price supplied by this response.
+    /// The average execution price reported by Kite, without local recalculation.
     public var averagePrice: Decimal {
         update.averagePrice
     }
@@ -149,7 +149,7 @@ public struct KiteOrder: Decodable, Sendable, Equatable {
         update.validityTTL
     }
 
-    /// The auction session identifier; auction placement requires a nonempty value.
+    /// The auction session identifier reported by Kite, or nil when absent or null.
     public var auctionNumber: String? {
         update.auctionNumber
     }
@@ -189,7 +189,11 @@ public struct KiteOrder: Decodable, Sendable, Equatable {
         update.orderTimestampRaw
     }
 
-    /// Decodes KiteOrder from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes a REST order with required status and modified fields in addition to shared update data.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         update = try KiteOrderUpdate(from: decoder)
         let container = try decoder.container(keyedBy: KiteOrderUpdate.CodingKeys.self)
@@ -223,9 +227,9 @@ public struct KiteTrade: Decodable, Sendable, Equatable {
     public let instrumentToken: UInt32
     /// The broker product used for the order or execution.
     public let product: KiteProduct
-    /// The buy or sell direction of the embedded or standalone order.
+    /// The reported buy or sell direction, retaining unfamiliar server values.
     public let transactionType: KiteTransactionType
-    /// The average execution or market price supplied by this response.
+    /// The average execution price reported by Kite, without local recalculation.
     public let averagePrice: Decimal
     /// The table calls this field filled; JSON examples use quantity. Either spelling is accepted.
     public let quantity: Int64
@@ -233,7 +237,7 @@ public struct KiteTrade: Decodable, Sendable, Equatable {
     public let filled: Int64?
     /// The instant at which the trade filled, using the configured timezone for offsetless text.
     public let fillTimestamp: Date
-    /// The exchange timestamp, when the response reports one.
+    /// The required exchange timestamp for this execution, decoded as an instant.
     public let exchangeTimestamp: Date
     /// The order time as a clock-only value or a full instant; no date is invented.
     public let orderTimestamp: KiteTradeOrderTimestamp
@@ -253,7 +257,11 @@ public struct KiteTrade: Decodable, Sendable, Equatable {
         case orderTimestamp = "order_timestamp"
     }
 
-    /// Decodes KiteTrade from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes an execution with nonempty IDs and nonnegative quantities; quantity takes precedence over filled.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         tradeID = try container.decode(String.self, forKey: .tradeID)
@@ -326,7 +334,10 @@ public indirect enum KiteOrderMetadata: Decodable, Sendable, Equatable {
     /// An explicit JSON null value, distinct from missing object keys.
     case null
 
-    /// Decodes KiteOrderMetadata from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes arbitrary order metadata recursively without imposing a fixed schema; numbers remain Decimal.
+    ///
+    /// - Parameter decoder: The decoder positioned at any JSON value.
+    /// - Throws: A decoding error if the value cannot be represented by the supported JSON cases.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {
