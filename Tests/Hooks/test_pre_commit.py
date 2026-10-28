@@ -23,6 +23,8 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.git("init", "--quiet")
         self.git("config", "user.name", "Hook Test")
         self.git("config", "user.email", "hook@example.invalid")
+        (self.repo / "Scripts").mkdir()
+        shutil.copy2(ROOT / "Scripts/check-documentation.py", self.repo / "Scripts/check-documentation.py")
         hooks = self.repo / ".githooks"
         hooks.mkdir()
         shutil.copy2(ROOT / ".githooks/pre-commit", hooks / "pre-commit")
@@ -70,6 +72,35 @@ class StagedCommitChecksTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0 if succeeds else 1, result.stderr)
         return result.stderr.decode()
+
+    def test_documentation_artifacts_are_blocked_even_when_forced_or_exempt(self):
+        for name in ("Documentation/Evidence/run.txt", "Documentation/Ticket-9.md",
+                     "Documentation/Review.md", "Documentation/Partial-0x.md",
+                     "Documentation/session.json", "Documentation/run.log",
+                     "Documentation/Run-2026-10-28.md"):
+            with self.subTest(name=name):
+                self.stage(name, b"execution output")
+                self.assertIn("execution/history artifact", self.check_hook(False))
+                self.git("rm", "--cached", "--", name)
+        self.stage(".gitattributes", b"Documentation/** linguist-generated=true\n")
+        self.stage("Documentation/result.json", b"{}")
+        self.check_hook(False)
+
+    def test_documentation_links_read_staged_content_and_deletions(self):
+        self.stage("Documentation/Usage.md", b"[Contracts](Contracts.md)\n")
+        self.stage("Documentation/Contracts.md", b"Durable behavior")
+        self.check_hook(True)
+        (self.repo / "Documentation/Usage.md").write_text("[broken](missing.md)")
+        self.check_hook(True)
+        self.git("rm", "--cached", "Documentation/Contracts.md")
+        self.assertIn("broken local link", self.check_hook(False))
+
+    def test_snapshot_and_maintained_markdown_are_allowed(self):
+        self.stage("Documentation/Usage.md", b"[snapshot](Snapshots/2026-10-27/user.html)")
+        self.stage("Documentation/Snapshots/2026-10-27/user.html", b"upstream bytes")
+        self.stage("Documentation/Snapshots/2026-10-27/manifest.json", b"{}")
+        self.stage("Documentation/Snapshots/2026-10-27/inventory.json", b"{}")
+        self.check_hook(True)
 
     def test_exact_limit_passes_but_one_more_byte_blocks(self):
         self.stage("source.swift", b"x" * 20_000)

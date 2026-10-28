@@ -1,0 +1,119 @@
+name: Protocol tests
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  ubuntu:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check preinstalled Swift 6.4
+        id: swift
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v swift >/dev/null && swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'; then
+            echo 'installed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'installed=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Import official Swift signing keys for installer
+        if: steps.swift.outputs.installed != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --compressed --fail --silent --show-error --location --retry 3 \
+            https://www.swift.org/keys/all-keys.asc -o "$RUNNER_TEMP/swift-signing-keys.asc"
+          gpg --batch --import "$RUNNER_TEMP/swift-signing-keys.asc"
+      - uses: swift-actions/setup-swift@v3
+        if: steps.swift.outputs.installed != 'true'
+        with:
+          swift-version: '6.4.0'
+      - name: Record compiler and OS
+        run: |
+          swift --version
+          cat /etc/os-release
+      - name: Ubuntu qualification (protocol, examples and real transports)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          bash Scripts/test-ubuntu.sh 2>&1 | tee .test-results/ubuntu.txt
+      # External availability is reported separately from deterministic qualification.
+      - name: Public sandbox SDK smoke (nonblocking)
+        id: sandbox
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          KITE_SANDBOX_INSTRUMENT_SMOKE: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --skip-build --filter instrumentsPublicSandboxSmoke 2>&1 | tee .test-results/sandbox-public.txt
+      - name: Report public sandbox outcome
+        if: always()
+        env:
+          SANDBOX_OUTCOME: ${{ steps.sandbox.outcome }}
+        run: |
+          echo "Public sandbox SDK smoke: $SANDBOX_OUTCOME (external availability; nonblocking)." >> "$GITHUB_STEP_SUMMARY"
+          echo 'No authenticated API or trading qualification is implied. See issue #27.' >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ubuntu-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: ignore
+  apple:
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      # The image's iOS 27.1 iPhone Duo runtime failed test-runner startup.
+      IOS_SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-27-0
+      IOS_SIMULATOR_NAME: iPhone 17
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify native Xcode and Swift toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          compiler_version=$(xcrun swift --version 2>&1)
+          echo "$compiler_version"
+          [[ "$compiler_version" == *"Swift version 6.4"* ]]
+          xcrun swift package dump-package > /dev/null
+      - name: Documentation integrity and offline Publisher examples
+        run: |
+          python3 Scripts/check-documentation.py
+          python3 -m unittest discover -s Tests/Hooks -p 'test_*.py'
+          python3 Scripts/audit-snapshot.py
+          python3 Scripts/check-documentation-examples.py
+          node --test Tests/Publisher.test.cjs
+      - name: Build macOS tests
+        timeout-minutes: 15
+        run: swift build --build-tests
+      - name: macOS public protocol and real loopback HTTP tests
+        timeout-minutes: 3
+        run: python3 Scripts/test-macos.py
+      - name: Constrained-executor HTTP regression
+        timeout-minutes: 3
+        run: env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10
+      - name: iOS Simulator public protocol and real loopback HTTP tests
+        timeout-minutes: 25
+        run: bash Scripts/test-ios.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: ignore

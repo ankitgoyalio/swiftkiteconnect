@@ -17,6 +17,7 @@ def git(*args, data=None):
 
 
 def main():
+    subprocess.run([sys.executable, "Scripts/check-documentation.py", "--staged"], check=True)
     # Raw, NUL-delimited records give the staged mode and object ID without
     # reading working-tree content or interpreting unusual filenames.
     records = git(

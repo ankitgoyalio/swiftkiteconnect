@@ -71,3 +71,14 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+# Local protocol test result bundles
+/.test-results/
+
+# Documentation is maintained guidance, not execution or agent history.
+/Documentation/Evidence/
+/Documentation/Ticket-*.md
+/Documentation/Review.md
+/Documentation/Partial-0x.md
+/Documentation/**/*.log
+/Documentation/**/*-summary.json
