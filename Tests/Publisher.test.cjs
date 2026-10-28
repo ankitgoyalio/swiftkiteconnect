@@ -3,7 +3,8 @@ const { readFileSync } = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const { test } = require('node:test');
-const guide = () => readFileSync(`${__dirname}/../Documentation/Publisher.md`, 'utf8');
+const guide = () => ['Prepare-a-Publisher-handoff', 'Handle-a-Publisher-return', 'Use-the-Publisher-plugin']
+  .map(name => readFileSync(`${__dirname}/../Sources/KiteConnect/KiteConnect.docc/${name}.md`, 'utf8')).join('\n');
 const block = (language, index = 0) => [...guide().matchAll(new RegExp('```' + language + '\\n([\\s\\S]*?)```', 'g'))][index][1];
 
 test('offsite example prepares a form basket without submitting or loading remote code', () => {

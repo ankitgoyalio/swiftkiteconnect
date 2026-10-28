@@ -59,7 +59,10 @@ slice fails the build. New slices must add their declarations before completion.
 
 Slice #31 covers `KiteConfiguration`, its public members, `KiteClient`, its two
 initializers, and its public configuration and API key. Endpoint methods and other
-models remain for later slices. Review descriptions for useful behavior,
+models remain for later slices. Slice #38 migrates Publisher browser guidance and
+its offline examples. Its declaration list is empty because Publisher has no
+Swift API. The linked authentication and order declarations belong to their
+respective slices. Review descriptions for useful behavior,
 parameters, errors, and constraints. A comment-length check cannot judge meaning.
 
 For final delivery, require every declaration to have documentation:

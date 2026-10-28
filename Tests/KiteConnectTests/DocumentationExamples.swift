@@ -208,3 +208,11 @@ func configuredSandboxClient(accessToken: String) throws -> KiteClient {
 		accessToken: accessToken,
 		configuration: .sandbox)
 }
+
+func inspectPublisherOutcome(client: KiteClient) async throws -> (
+	orders: [KiteOrder], trades: [KiteTrade]
+) {
+	let orders = try await client.orders()
+	let trades = try await client.trades()
+	return (orders, trades)
+}

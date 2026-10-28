@@ -21,3 +21,10 @@ The configuration and client reference is the first completed documentation slic
 - <doc:Create-a-client>
 - ``KiteConfiguration``
 - ``KiteClient``
+
+### Integrate Publisher in a browser
+
+- <doc:Publisher-integration>
+- <doc:Prepare-a-Publisher-handoff>
+- <doc:Handle-a-Publisher-return>
+- <doc:Use-the-Publisher-plugin>

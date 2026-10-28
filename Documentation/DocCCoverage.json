@@ -13,6 +13,7 @@
       "KiteConfiguration/sandbox",
       "KiteConfiguration/timeout",
       "KiteConfiguration/tradingTimeZone"
-    ]
+    ],
+    "38-publisher-guidance": []
   }
 }
