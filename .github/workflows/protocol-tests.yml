@@ -98,6 +98,18 @@ jobs:
           python3 Scripts/audit-snapshot.py
           python3 Scripts/check-documentation-examples.py
           node --test Tests/Publisher.test.cjs
+      - name: Build and validate static DocC documentation
+        run: |
+          python3 -m unittest discover -s Tests/Documentation -p 'test_*.py'
+          python3 Scripts/build-documentation.py
+      - uses: actions/upload-artifact@v7
+        with:
+          name: docc-site
+          path: |
+            .build/documentation/KiteConnect.doccarchive
+            .build/documentation/public-api-inventory.json
+          include-hidden-files: true
+          if-no-files-found: error
       - name: Build macOS tests
         timeout-minutes: 15
         run: swift build --build-tests

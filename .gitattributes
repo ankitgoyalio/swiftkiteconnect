@@ -15,3 +15,6 @@ Vendor/** linguist-vendored=true
 vendor/** linguist-vendored=true
 # Official documentation archives retain exact upstream bytes for hash provenance.
 Documentation/Snapshots/** -whitespace
+
+# Authored examples are checked against this generated compilation unit.
+Tests/KiteConnectTests/DocumentationExamples.swift linguist-generated=true

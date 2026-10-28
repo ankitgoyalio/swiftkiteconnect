@@ -1,0 +1,18 @@
+{
+  "completedSlices": {
+    "31-configuration-and-client": [
+      "KiteClient",
+      "KiteClient/apiKey",
+      "KiteClient/configuration",
+      "KiteClient/init(apiKey:accessToken:configuration:transport:)",
+      "KiteClient/init(session:configuration:transport:)",
+      "KiteConfiguration",
+      "KiteConfiguration/baseURL",
+      "KiteConfiguration/init(baseURL:routePrefix:timeout:tradingTimeZone:)",
+      "KiteConfiguration/routePrefix",
+      "KiteConfiguration/sandbox",
+      "KiteConfiguration/timeout",
+      "KiteConfiguration/tradingTimeZone"
+    ]
+  }
+}
