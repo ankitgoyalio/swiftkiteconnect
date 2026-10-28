@@ -21,3 +21,11 @@ The configuration and client reference is the first completed documentation slic
 - <doc:Create-a-client>
 - ``KiteConfiguration``
 - ``KiteClient``
+
+### Account funds, portfolio, and mutual funds
+
+- <doc:Inspect-account-margins>
+- <doc:Inspect-and-convert-portfolio>
+- <doc:Authorise-holding-sales>
+- <doc:Read-mutual-fund-information>
+- <doc:Financial-values-and-portfolio-views>
