@@ -54,3 +54,9 @@ The configuration, client, authentication, and user-profile references have comp
 - <doc:Prepare-a-Publisher-handoff>
 - <doc:Handle-a-Publisher-return>
 - <doc:Use-the-Publisher-plugin>
+
+### Instruments and market data
+
+- <doc:Discover-instruments>
+- <doc:Request-quote-snapshots>
+- <doc:Request-historical-candles>

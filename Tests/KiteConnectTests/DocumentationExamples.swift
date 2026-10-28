@@ -227,6 +227,16 @@ func configuredSandboxClient(accessToken: String) throws -> KiteClient {
 		configuration: .sandbox)
 }
 
+func discoverINFY(client: KiteClient) async throws -> KiteInstrument? {
+	let identity = try KiteInstrumentIdentity(exchange: .nse, tradingSymbol: "INFY")
+	let catalogue = try await client.instruments(exchange: .nse)
+	let instrument = catalogue.first { $0.identity == identity }
+	if let instrument {
+		print(instrument.identity.description, instrument.instrumentToken)
+	}
+	return instrument
+}
+
 func inspectPublisherOutcome(client: KiteClient) async throws -> (
 	orders: [KiteOrder], trades: [KiteTrade]
 ) {
@@ -278,6 +288,44 @@ func offlineHTTPPostbackBody() -> Data {
 	"guid": "XXXXXX"
 	}
 	"""#.utf8)
+}
+
+func readHistoricalCandles(
+	client: KiteClient, instrumentToken: UInt32, from: Date, to: Date
+) async throws -> [KiteHistoricalCandle] {
+	let candles = try await client.historicalCandles(
+		instrumentToken: instrumentToken, interval: .minute,
+		from: from, to: to, oi: true)
+	for candle in candles {
+		print(candle.timestamp, candle.close, candle.volume, candle.openInterest as Any)
+	}
+	return candles
+}
+
+func readContinuousFuturesDays(
+	client: KiteClient, liveFuturesToken: UInt32, from: Date, to: Date
+) async throws -> [KiteHistoricalCandle] {
+	try await client.historicalCandles(
+		instrumentToken: liveFuturesToken, interval: .day,
+		from: from, to: to, continuous: true)
+}
+
+func readINFYSnapshots(client: KiteClient) async throws {
+	let identity = try KiteInstrumentIdentity(exchange: .nse, tradingSymbol: "INFY")
+	let full = try await client.quotes(instruments: [identity])
+	if let quote = full[identity] {
+		print(quote.lastPrice, quote.timestamp, quote.depth.buy.count)
+	} else {
+		print("Full quote unavailable for", identity.description)
+	}
+	let summaries = try await client.ohlc(instruments: [identity])
+	if let summary = summaries[identity] {
+		print(summary.lastPrice, summary.ohlc.close)
+	}
+	let prices = try await client.ltp(instruments: [identity])
+	if let price = prices[identity] {
+		print(price.instrumentToken, price.lastPrice)
+	}
 }
 
 //
