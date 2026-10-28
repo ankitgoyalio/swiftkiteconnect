@@ -21,3 +21,9 @@ The configuration and client reference is the first completed documentation slic
 - <doc:Create-a-client>
 - ``KiteConfiguration``
 - ``KiteClient``
+
+### Instruments and market data
+
+- <doc:Discover-instruments>
+- <doc:Request-quote-snapshots>
+- <doc:Request-historical-candles>
