@@ -14,6 +14,7 @@
       "KiteConfiguration/timeout",
       "KiteConfiguration/tradingTimeZone"
     ],
+    "38-publisher-guidance": [],
     "33-instruments-and-market-data": [
       "KiteClient/historicalCandles(instrumentToken:interval:from:to:continuous:oi:)",
       "KiteClient/instruments(exchange:)",

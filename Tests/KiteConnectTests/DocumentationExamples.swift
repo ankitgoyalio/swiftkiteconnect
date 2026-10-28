@@ -219,6 +219,14 @@ func discoverINFY(client: KiteClient) async throws -> KiteInstrument? {
 	return instrument
 }
 
+func inspectPublisherOutcome(client: KiteClient) async throws -> (
+	orders: [KiteOrder], trades: [KiteTrade]
+) {
+	let orders = try await client.orders()
+	let trades = try await client.trades()
+	return (orders, trades)
+}
+
 func readHistoricalCandles(
 	client: KiteClient, instrumentToken: UInt32, from: Date, to: Date
 ) async throws -> [KiteHistoricalCandle] {
