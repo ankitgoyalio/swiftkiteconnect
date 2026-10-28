@@ -220,6 +220,21 @@ func doccSandboxAuthentication(apiKey: String) throws -> (KiteClient, URL) {
 	return (client, login)
 }
 
+func initiatePortfolioAuthorisation(client: KiteClient, isin: String, quantity: Int64)
+	async throws -> KiteHoldingsAuthorisationFlow
+{
+	let receipt = try await client.authoriseHoldings(instruments: [
+		KiteHoldingsAuthorisationItem(isin: isin, quantity: quantity)
+	])
+	return try client.holdingsAuthorisationFlow(requestID: receipt.requestID)
+}
+
+func inspectPortfolioRedirect(flow: KiteHoldingsAuthorisationFlow, redirect: URL)
+	-> KiteHoldingsAuthorisationStatus?
+{
+	flow.completionStatus(for: redirect)
+}
+
 func configuredSandboxClient(accessToken: String) throws -> KiteClient {
 	try KiteClient(
 		apiKey: "sandboxdemo",
@@ -243,6 +258,80 @@ func inspectPublisherOutcome(client: KiteClient) async throws -> (
 	let orders = try await client.orders()
 	let trades = try await client.trades()
 	return (orders, trades)
+}
+
+func equityFunds(client: KiteClient) async throws -> Decimal? {
+	let funds = try await client.margins(segment: .equity)
+	return funds.enabled ? funds.net : nil
+}
+
+func estimatePortfolioCosts(client: KiteClient, instrument: KiteInstrumentIdentity)
+	async throws -> KiteCalculatedBasketMargins
+{
+	let order = KiteMarginOrder(
+		instrument: instrument, transactionType: .buy, product: .cnc,
+		orderType: .limit, quantity: 1, price: Decimal(string: "125.50")!)
+	let full = try await client.orderMargins([order])
+	let compact = try await client.compactOrderMargins([order])
+	_ = full.first?.charges
+	_ = compact.first?.total
+	_ = try await client.compactBasketMargins([order], considerPositions: false)
+	return try await client.basketMargins([order], considerPositions: true)
+}
+
+func estimateContractNote(client: KiteClient, instrument: KiteInstrumentIdentity)
+	async throws -> [KiteCalculatedOrderCharges]
+{
+	let input = KiteChargeOrder(
+		orderID: "hypothetical-1", instrument: instrument, transactionType: .buy,
+		product: .cnc, orderType: .limit, quantity: 1,
+		averagePrice: Decimal(string: "125.50")!)
+	return try await client.orderCharges([input])
+}
+
+func inspectEquityPortfolio(client: KiteClient) async throws -> KitePositions {
+	let holdings = try await client.holdings()
+	let auctions = try await client.auctionHoldings()
+	_ = holdings.first?.identity
+	_ = auctions.first?.auctionNumber
+	return try await client.positions()
+}
+
+func convertPortfolioProduct(client: KiteClient, instrument: KiteInstrumentIdentity)
+	async throws -> Bool
+{
+	let conversion = KitePositionConversion(
+		instrument: instrument, transactionType: .buy, positionType: .day,
+		quantity: 1, oldProduct: .mis, newProduct: .cnc)
+	return try await client.convertPosition(conversion)
+}
+
+func exitPortfolioPosition(client: KiteClient, position: KitePosition, price: Decimal)
+	async throws -> KiteOrderPlacementResult?
+{
+	guard let quantity = Int64(exactly: position.quantity.magnitude), quantity > 0 else {
+		return nil
+	}
+	var order = KiteOrderPlacement(
+		tradingSymbol: position.tradingSymbol, exchange: position.exchange,
+		transactionType: position.quantity > 0 ? .sell : .buy,
+		orderType: .limit, quantity: quantity, product: position.product)
+	order.price = price
+	return try await client.placeOrder(order)
+}
+
+func inspectFundActivity(client: KiteClient, orderID: String)
+	async throws -> [KiteMutualFundSIP]
+{
+	_ = try await client.mutualFundOrders()
+	_ = try await client.mutualFundOrder(orderID: orderID)
+	return try await client.mutualFundSIPs()
+}
+
+func inspectFundInventory(client: KiteClient) async throws -> [KiteMutualFundInstrument] {
+	let holdings = try await client.mutualFundHoldings()
+	_ = holdings.first?.quantity
+	return try await client.mutualFundInstruments()
 }
 
 func decodeIncomingHTTPPostback(body: Data, backendSecret: String) throws -> KitePostback {

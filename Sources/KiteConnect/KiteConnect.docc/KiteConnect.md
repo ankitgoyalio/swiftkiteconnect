@@ -60,3 +60,11 @@ The configuration, client, authentication, and user-profile references have comp
 - <doc:Discover-instruments>
 - <doc:Request-quote-snapshots>
 - <doc:Request-historical-candles>
+
+### Account funds, portfolio, and mutual funds
+
+- <doc:Inspect-account-margins>
+- <doc:Inspect-and-convert-portfolio>
+- <doc:Authorise-holding-sales>
+- <doc:Read-mutual-fund-information>
+- <doc:Financial-values-and-portfolio-views>
