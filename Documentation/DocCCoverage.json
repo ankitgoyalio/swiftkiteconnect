@@ -119,6 +119,18 @@
       "NIOKiteWebSocketTransport/incomingBufferCapacity",
       "NIOKiteWebSocketTransport/init(connectTimeout:incomingBufferCapacity:trustRootsPEM:)",
       "NIOKiteWebSocketTransport/trustRootsPEM"
-    ]
+    ],
+    "37-http-postbacks": [
+      "KitePostback",
+      "KitePostback/userID",
+      "KitePostback/appID",
+      "KitePostback/order",
+      "KitePostbackError",
+      "KitePostbackError/invalidSecret",
+      "KitePostbackError/invalidChecksum",
+      "KitePostbacks",
+      "KitePostbacks/decode(_:apiSecret:tradingTimeZone:)"
+    ],
+    "38-publisher-guidance": []
   }
 }

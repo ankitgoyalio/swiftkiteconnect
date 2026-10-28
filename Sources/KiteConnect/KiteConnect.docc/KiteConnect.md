@@ -39,3 +39,18 @@ The configuration, client, and streaming references are completed documentation 
 - ``KiteWebSocketConnection``
 - ``KiteWebSocketMessage``
 - ``NIOKiteWebSocketTransport``
+
+### Receive HTTP order notifications
+
+- <doc:Receive-HTTP-postbacks>
+- <doc:Postbacks-and-order-updates>
+- ``KitePostbacks``
+- ``KitePostback``
+- ``KitePostbackError``
+
+### Integrate Publisher in a browser
+
+- <doc:Publisher-integration>
+- <doc:Prepare-a-Publisher-handoff>
+- <doc:Handle-a-Publisher-return>
+- <doc:Use-the-Publisher-plugin>
