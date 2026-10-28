@@ -74,6 +74,12 @@ Private session material stays outside the repository; future runs use
 
 ## Remaining qualification
 
+Documentation publication requires the dedicated DNS record, account-level domain
+verification, a GitHub Pages HTTPS certificate, and a successful deployment from
+`main`. Repository automation and offline DocC validation do not establish a live
+custom domain. Follow [Pages setup and verification](Pages.md) before claiming
+hosted documentation success.
+
 [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) remains open for
 SDK session exchange/logout and approved renewal, simulated LIMIT lifecycle and
 reconciliation, eligible position conversion, alerts/MF availability, browser

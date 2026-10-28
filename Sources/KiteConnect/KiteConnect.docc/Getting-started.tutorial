@@ -1,0 +1,10 @@
+@Tutorials(name: "Get started with KiteConnect") {
+    @Intro(title: "Make your first read-only request") {
+        Connect your application's authentication flow to the unofficial Swift SDK and fetch your user profile.
+    }
+    @Chapter(name: "Authenticate and read a profile") {
+        Follow the tutorial with your own application and backend. Offline contributor checks compile the examples without a live account.
+        @Image(source: "Authentication-flow.svg", alt: "The application handles login, the backend exchanges the request token, and the client reads the profile using an access token.")
+        @TutorialReference(tutorial: "doc:First-request")
+    }
+}

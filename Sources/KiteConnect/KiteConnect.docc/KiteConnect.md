@@ -1,0 +1,113 @@
+# ``KiteConnect``
+
+Integrate Kite Connect v3 with an unofficial Swift package for REST requests, market-data ticks, and order updates.
+
+## Overview
+
+This is development documentation for a partial 0.x package, not a qualified 1.0 release. Authenticated sandbox evidence remains incomplete. Fixture-backed tests do not establish live trading qualification. The package implements the selected 2026-10-27 upstream snapshot. See the repository's [capability coverage](https://github.com/ankitgoyalio/swiftkiteconnect/blob/main/Documentation/CapabilityCoverage.md) and [verification evidence](https://github.com/ankitgoyalio/swiftkiteconnect/blob/main/Documentation/Verification.md) for limitations.
+
+The package requires Swift 6.4 and supports iOS 18+, macOS 15+, and server-side Swift on Linux. CI targets Ubuntu 24.04. These pages assume that you know Swift, Swift Package Manager, and `async/await`.
+
+Use ``KiteClient`` for REST operations and ``KiteTicker`` for streaming. A market-data tick is a streamed quote update. An order update describes an order's state. A postback delivers an order update to your application's HTTP callback URL.
+
+Applications own browser presentation, redirect handling, credential storage, and reconciliation. Secret-bearing token exchange belongs on a backend for publicly distributed applications. Each client represents one API key and user session. Requests attempt once without automatic retries. Reconcile uncertain trading mutations before another action. Each ticker owns one connection. Missed streaming events are not replayed.
+
+Every authored public declaration is included in the documentation coverage audit. Maintainers also review behavioral accuracy, parameters, return values, errors, and constraints; automated comment presence cannot establish semantic usefulness.
+
+## Topics
+
+### Configure a client
+
+- <doc:Create-a-client>
+- ``KiteConfiguration``
+- ``KiteClient``
+
+### Authenticate and fetch a profile
+
+- <doc:Getting-started>
+- <doc:First-request>
+- <doc:Authenticate-a-session>
+- <doc:Authentication-ownership>
+- ``KiteSession``
+- ``KiteSessionCredentials``
+- ``KiteSessionRenewal``
+- ``KiteUserProfile``
+- ``KiteClient/loginURL(redirectParameters:endpoint:)``
+- ``KiteClient/exchangeRequestToken(_:apiSecret:)``
+- ``KiteClient/replaceAccessToken(_:)``
+- ``KiteClient/profile()``
+- ``KiteClient/invalidateSession()``
+- ``KiteClient/renewSession(refreshToken:apiSecret:)``
+- ``KiteClient/invalidateRefreshToken(_:)``
+
+### Orders, GTT, and alerts
+
+- <doc:Manage-orders>
+- <doc:Manage-GTT-triggers>
+- <doc:Manage-alerts>
+- <doc:Trading-mutation-outcomes>
+
+### Stream market data and order updates
+
+- <doc:Connect-and-consume-streams>
+- <doc:Streaming-recovery>
+- ``KiteTicker``
+- ``KiteTickerMode``
+- ``KiteMarketTick``
+- ``KiteLTPTick``
+- ``KiteOrderUpdateEvent``
+- ``KiteBrokerEvent``
+- ``KiteTickerLifecycleEvent``
+- ``KiteTickerError``
+- ``KiteTickerReconnectPolicy``
+- ``KiteWebSocketTransport``
+- ``KiteWebSocketConnection``
+- ``KiteWebSocketMessage``
+- ``NIOKiteWebSocketTransport``
+
+### Receive HTTP order notifications
+
+- <doc:Receive-HTTP-postbacks>
+- <doc:Postbacks-and-order-updates>
+- ``KitePostbacks``
+- ``KitePostback``
+- ``KitePostbackError``
+
+### Integrate Publisher in a browser
+
+- <doc:Publisher-integration>
+- <doc:Prepare-a-Publisher-handoff>
+- <doc:Handle-a-Publisher-return>
+- <doc:Use-the-Publisher-plugin>
+
+### Instruments and market data
+
+- <doc:Discover-instruments>
+- <doc:Request-quote-snapshots>
+- <doc:Request-historical-candles>
+
+### Account funds, portfolio, and mutual funds
+
+- <doc:Inspect-account-margins>
+- <doc:Inspect-and-convert-portfolio>
+- <doc:Authorise-holding-sales>
+- <doc:Read-mutual-fund-information>
+- <doc:Financial-values-and-portfolio-views>
+
+### Shared contracts, errors, and extension points
+
+- <doc:Request-and-response-contracts>
+- ``KiteError``
+- ``KiteAPIError``
+- ``KiteStringValue``
+- ``KiteProduct``
+- ``KiteOrderType``
+- ``KiteExchange``
+- ``KiteHTTPTransport``
+- ``URLSessionKiteTransport``
+- ``KiteHTTPMethod``
+- ``KiteHTTPRequest``
+- ``KiteHTTPResponse``
+- ``KiteRequest``
+- ``KiteRequestBody``
+- ``KiteParameter``

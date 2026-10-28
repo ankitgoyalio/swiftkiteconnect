@@ -10,7 +10,8 @@ from urllib.parse import unquote, urlsplit
 
 
 GUIDES = {"README.md", "Usage.md", "Contracts.md", "Coverage.md", "CapabilityCoverage.md",
-          "Publisher.md", "Verification.md", "SandboxVerification.md"}
+          "Publisher.md", "Verification.md", "SandboxVerification.md",
+          "DocC.md", "Pages.md", "DocCCoverage.json", "DocCCoveragePortfolio.json", "DocCCoverageOrders.json"}
 
 
 def git(*args):
@@ -34,7 +35,7 @@ def main():
             errors.append(f"{name}: execution/history artifact or unregistered guide; use .test-results/, CI artifacts or the GitHub issue/PR; register intentional new guides in GUIDES")
     # Static Markdown links only; remote URLs and fragment-only links are not fetched.
     for name in sorted(paths):
-        if not (name.endswith(".md") and (name.startswith("Documentation/") or name == "README.md")):
+        if not (name.endswith(".md") and (name.startswith("Documentation/") or name == "README.md" or ".docc/" in name)):
             continue
         text = (git("show", ":" + name).decode() if args.staged else open(name, encoding="utf-8").read())
         for target in re.findall(r"\]\(([^)]+)\)", text):
