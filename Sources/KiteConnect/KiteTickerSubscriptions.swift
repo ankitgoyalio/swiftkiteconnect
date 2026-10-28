@@ -10,7 +10,9 @@ public extension KiteTicker {
     /// Subscribes nonzero instrument tokens in LTP mode.
     ///
     /// Equivalent to `subscribe(_:mode:)` with `.ltp`, including its limits and errors.
-    /// - Parameter tokens: Nonempty tokens, with at most 3000 unique desired subscriptions.
+    /// - Parameter tokens: Nonempty nonzero tokens, with at most 3000 unique desired subscriptions.
+    /// - Throws: Invalid configuration, inactive lifecycle, concurrent command, transport,
+    ///   or cancellation errors, as with subscribe(_:mode:).
     func subscribe(_ tokens: [UInt32]) async throws {
         try await subscribe(tokens, mode: .ltp)
     }

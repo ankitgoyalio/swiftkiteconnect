@@ -19,6 +19,8 @@ class Examples(unittest.TestCase):
             (root / 'README.md').write_text('')
             (root / 'Documentation/Usage.md').write_text('')
             catalog = root / 'Sources/KiteConnect/KiteConnect.docc'
+            (root / 'Sources/KiteConnect/Helper.swift').write_text(
+                '/// ```swift\n/// func symbolExample() {}\n/// ```\npublic struct Helper {}\n')
             (catalog / 'Configure.md').write_text('```swift\nfunc articleExample() {}\n```\n')
             (catalog / 'Start.tutorial').write_text('@Code(name: "Start.swift", file: "Start.swift")')
             resource = catalog / 'Resources/Start.swift'
@@ -28,6 +30,7 @@ class Examples(unittest.TestCase):
             generated = (root / 'Tests/KiteConnectTests/DocumentationExamples.swift').read_text()
             self.assertIn('func articleExample() {}', generated)
             self.assertIn('func tutorialExample() {}', generated)
+            self.assertIn('func symbolExample() {}', generated)
             subprocess.run(['swiftc', '-typecheck', str(root / 'Tests/KiteConnectTests/DocumentationExamples.swift')],
                            check=True, capture_output=True)
             resource.write_text('func updatedTutorialExample() {}\n')

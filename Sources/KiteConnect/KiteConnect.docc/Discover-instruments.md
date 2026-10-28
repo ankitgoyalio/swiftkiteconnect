@@ -41,3 +41,23 @@ Handle ``KiteError/validation(field:message:)`` for an invalid exchange filter a
 - ``KiteInstrumentIdentity``
 - ``KiteDateOnly``
 - ``KiteExchange``
+
+## Combine catalogue and snapshot reads
+
+Supply application-owned inputs and a configured client. These functions compile against the public SDK; routine verification does not call remote services.
+
+```swift
+func marketReads(client: KiteClient, from: Date, to: Date) async throws {
+	let identity = try KiteInstrumentIdentity(exchange: .nse, tradingSymbol: "INFY")
+	let instruments = try await client.instruments()
+	_ = try await client.instruments(exchange: .nse)
+	let quotes = try await client.quotes(instruments: [identity])
+	_ = try await client.ohlc(instruments: [identity])
+	_ = try await client.ltp(instruments: [identity])
+	if let token = instruments.first(where: { $0.identity == identity })?.instrumentToken {
+		_ = try await client.historicalCandles(
+			instrumentToken: token, interval: .minute, from: from, to: to, oi: true)
+	}
+	print(quotes.count)
+}
+```

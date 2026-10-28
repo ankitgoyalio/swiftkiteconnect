@@ -51,3 +51,17 @@ Each request attempts once. Handle validation errors for malformed identifiers a
 - ``KiteMutualFundPurchaseType``
 - ``KiteMutualFundSchemeType``
 - ``KiteMutualFundPlan``
+
+## Read all supported fund views
+
+Supply a known order ID to read its details alongside the recent list, plans, holdings, and catalogue.
+
+```swift
+func mutualFundReads(client: KiteClient, orderID: String) async throws {
+	_ = try await client.mutualFundOrders()
+	_ = try await client.mutualFundOrder(orderID: orderID)
+	_ = try await client.mutualFundSIPs()
+	_ = try await client.mutualFundHoldings()
+	_ = try await client.mutualFundInstruments()
+}
+```

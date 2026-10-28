@@ -12,7 +12,7 @@ Use ``KiteClient`` for REST operations and ``KiteTicker`` for streaming. A marke
 
 Applications own browser presentation, redirect handling, credential storage, and reconciliation. Secret-bearing token exchange belongs on a backend for publicly distributed applications. Each client represents one API key and user session. Requests attempt once without automatic retries. Reconcile uncertain trading mutations before another action. Each ticker owns one connection. Missed streaming events are not replayed.
 
-Completed slices document configuration, client setup, authentication, user profiles, orders, GTT, alerts, market data, portfolio, mutual funds, streaming, and postbacks. Other generated symbol pages may lack descriptions until their slices are complete. Complete meaningful public API documentation remains a release requirement.
+Every authored public declaration is included in the documentation coverage audit. Maintainers also review behavioral accuracy, parameters, return values, errors, and constraints; automated comment presence cannot establish semantic usefulness.
 
 ## Topics
 
@@ -93,3 +93,21 @@ Completed slices document configuration, client setup, authentication, user prof
 - <doc:Authorise-holding-sales>
 - <doc:Read-mutual-fund-information>
 - <doc:Financial-values-and-portfolio-views>
+
+### Shared contracts, errors, and extension points
+
+- <doc:Request-and-response-contracts>
+- ``KiteError``
+- ``KiteAPIError``
+- ``KiteStringValue``
+- ``KiteProduct``
+- ``KiteOrderType``
+- ``KiteExchange``
+- ``KiteHTTPTransport``
+- ``URLSessionKiteTransport``
+- ``KiteHTTPMethod``
+- ``KiteHTTPRequest``
+- ``KiteHTTPResponse``
+- ``KiteRequest``
+- ``KiteRequestBody``
+- ``KiteParameter``

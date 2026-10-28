@@ -6,18 +6,32 @@
 
 import Foundation
 
+/// An HTTP or Kite error response, retaining server diagnostics for caller policy.
 public struct KiteAPIError: Error, Sendable, Equatable {
+    /// The HTTP status received, even when a success status contains a Kite error envelope.
     public let statusCode: Int
-    /// Raw server value, including unfamiliar error types.
+    /// The server error type, including unfamiliar values, or nil without a decoded error type.
     public let errorType: String?
+    /// The server message, or an HTTP status description when no message decodes.
     public let message: String
+    /// Response header fields as supplied by the transport, without case normalization.
     public let headers: [String: String]
 }
 
+/// Local validation, transport, API, and decoding failures from REST operations.
+///
+/// Cancellation remains CancellationError. For trading mutations, inspect uncertainOutcome
+/// and reconcile server state before resubmission. See <doc:Trading-mutation-outcomes>.
 public indirect enum KiteError: Error, Sendable {
+    /// A local structural check failed before dispatch; field identifies the input and message explains the constraint.
     case validation(field: String, message: String)
+    /// The transport failed; code is the underlying NSError code when available and message describes the failure.
     case transport(code: Int?, message: String)
+    /// An HTTP or Kite rejection with status, message, headers, and any decoded server error type.
+    ///
+    /// A non-Kite gateway response for a trading mutation is wrapped in uncertainOutcome.
     case api(KiteAPIError)
+    /// A response could not satisfy its required schema; statusCode is the received HTTP status and message describes the failure.
     case decoding(statusCode: Int, message: String)
     /// A mutation may have reached Kite. Reconcile before submitting another action.
     case uncertainOutcome(KiteError)
@@ -77,45 +91,6 @@ public struct KiteConfiguration: Sendable {
     /// Instrument dumps use the origin without the API prefix. This setting supplies no credentials.
     public static var sandbox: KiteConfiguration {
         try! KiteConfiguration(baseURL: URL(string: "https://sandbox.kite.trade")!, routePrefix: "/oms")
-    }
-}
-
-/// Repeated pairs preserve parameters such as `i=NSE:INFY&i=NSE:RELIANCE`.
-public struct KiteParameter: Sendable, Equatable {
-    public let name: String
-    public let value: String
-    public init(_ name: String, _ value: String) {
-        self.name = name
-        self.value = value
-    }
-}
-
-public enum KiteRequestBody: Sendable {
-    case form([KiteParameter])
-    case json(Data)
-}
-
-/// Shared request contract for typed endpoint extensions and controlled protocol tests.
-public struct KiteRequest: Sendable {
-    public let method: KiteHTTPMethod
-    public let path: String
-    public let query: [KiteParameter]
-    public let body: KiteRequestBody?
-    public let authenticated: Bool
-    public let isTradingMutation: Bool
-    public let isInstrumentDump: Bool
-    public init(
-        method: KiteHTTPMethod = .get, path: String, query: [KiteParameter] = [],
-        body: KiteRequestBody? = nil, authenticated: Bool = true, isTradingMutation: Bool = false,
-        isInstrumentDump: Bool = false,
-    ) {
-        self.method = method
-        self.path = path
-        self.query = query
-        self.body = body
-        self.authenticated = authenticated
-        self.isTradingMutation = isTradingMutation
-        self.isInstrumentDump = isInstrumentDump
     }
 }
 
@@ -243,6 +218,15 @@ public actor KiteClient {
         try await execute(KiteRequest(path: "/user/profile"), as: KiteUserProfile.self)
     }
 
+    /// Sends one request and decodes the data field of a Kite success envelope.
+    ///
+    /// - Parameters:
+    ///   - request: The route, encoding, authentication, and mutation classification.
+    ///   - as: The Decodable and Sendable type expected inside data.
+    /// - Returns: The decoded data value, using the configured trading time zone for dates.
+    /// - Throws: KiteError for validation, transport, API, or decoding failure. Trading
+    ///   mutation transport and malformed response failures carry uncertainOutcome.
+    ///   Cancellation throws CancellationError and does not prove server rejection.
     public func execute<Value: Decodable & Sendable>(_ request: KiteRequest, as _: Value.Type)
         async throws -> Value
     {
@@ -266,7 +250,16 @@ public actor KiteClient {
         }
     }
 
-    /// Validates HTTP/API errors, returning bytes for CSV and other non-JSON endpoints.
+    /// Sends one request and validates its HTTP status and any Kite error envelope.
+    ///
+    /// - Parameter request: The route and encoding; typed endpoints set mutation and dump flags.
+    /// - Returns: The successful HTTP response, with body bytes unchanged for CSV or custom decoding.
+    /// - Throws: KiteError for invalid paths, missing credentials, transport failures, or
+    ///   API rejection. Non-Kite mutation failures carry uncertainOutcome. Cancellation
+    ///   throws CancellationError; cancellation after dispatch does not prove rejection.
+    ///
+    /// No retry, redirect following, rate-limit queue, or automatic refresh occurs with
+    /// the default transport. Custom transports must honor the single-attempt contract.
     public func response(for request: KiteRequest) async throws -> KiteHTTPResponse {
         try Task.checkCancellation()
         guard request.path.hasPrefix("/"), !request.path.contains(".."), !request.path.contains("?"),

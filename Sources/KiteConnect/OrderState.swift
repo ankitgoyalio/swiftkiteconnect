@@ -31,15 +31,15 @@ public struct KiteOrderUpdate: Decodable, Sendable, Equatable {
     public let instrumentToken: UInt32
     /// The order routing variety, such as regular, after-market, or cover.
     public let variety: KiteOrderVariety
-    /// The buy or sell direction of the embedded or standalone order.
+    /// The reported buy or sell direction, retaining unfamiliar server values.
     public let transactionType: KiteTransactionType
     /// The pricing instruction, such as LIMIT, MARKET, or stop-loss.
     public let orderType: KiteOrderType
     /// The broker product used for the order or execution.
     public let product: KiteProduct
-    /// The order lifetime instruction reported or submitted to Kite.
+    /// The reported order lifetime instruction, retaining unfamiliar server values.
     public let validity: KiteOrderValidity
-    /// The order quantity in instrument units; submitted quantities must be positive.
+    /// The nonnegative order quantity reported by Kite, without recomputing it from fills.
     public let quantity: Int64
     /// The quantity disclosed to the market; supplied values must be nonnegative.
     public let disclosedQuantity: Int64
@@ -53,7 +53,7 @@ public struct KiteOrderUpdate: Decodable, Sendable, Equatable {
     public let price: Decimal
     /// The stop-loss trigger price, separate from the order limit price.
     public let triggerPrice: Decimal
-    /// The average execution or market price supplied by this response.
+    /// The average execution price reported by Kite, without local recalculation.
     public let averagePrice: Decimal
     /// The order timestamp supplied by Kite, interpreted with the configured trading timezone when offsetless.
     public let orderTimestamp: Date
@@ -71,7 +71,7 @@ public struct KiteOrderUpdate: Decodable, Sendable, Equatable {
     public let unfilledQuantity: Int64?
     /// The optional order time-to-live in minutes, validated as nonnegative in REST state.
     public let validityTTL: Int64?
-    /// The auction session identifier; auction placement requires a nonempty value.
+    /// The auction session identifier reported by Kite, or nil when absent or null.
     public let auctionNumber: String?
     /// The application tag returned by Kite, when present; it is not an idempotency key.
     public let tag: String?
@@ -127,7 +127,11 @@ public struct KiteOrderUpdate: Decodable, Sendable, Equatable {
         case unfilledQuantity = "unfilled_quantity"
     }
 
-    /// Decodes KiteOrderUpdate from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes shared order state while allowing notification-specific omissions of status and modified.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         orderID = try container.decode(String.self, forKey: .orderID)

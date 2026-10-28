@@ -21,3 +21,5 @@ Each REST operation attempts once. The SDK does not automatically retry reads or
 Before another mutation, reconcile the observed state with the application's saved intent. For orders, inspect order history, trades, portfolio state, and order updates as appropriate. For GTT, inspect stored triggers and embedded submission results. For alerts, inspect alert state and history. Empty order history does not prove nonacceptance, and an application tag is not an idempotency key.
 
 Recovery does not automatically reconcile orders. Missed streaming events are not replayed. The application must decide what evidence establishes an outcome before authorizing another action. Fixture-backed verification checks protocol handling without live credentials or trading requests. It does not qualify this partial 0.x package for live trading.
+
+See <doc:Request-and-response-contracts> for the shared reference and <doc:First-request> for the introductory read-only tutorial.

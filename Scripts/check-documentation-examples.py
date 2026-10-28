@@ -18,6 +18,12 @@ for document in documents:
         if len(matches) != 1:
             sys.exit(f'{document}: expected one tutorial resource named {name}')
         resources.add(matches[0])
+# Declaration comments render executable examples too. Extract only contiguous
+# triple-slash comments, never executable implementation code or ordinary comments.
+for source in sorted((root / 'Sources/KiteConnect').glob('*.swift')):
+    for comment in re.findall(r'(?:^[ \t]*///[^\n]*\n)+', source.read_text(), re.M):
+        text = re.sub(r'^[ \t]*/// ?', '', comment, flags=re.M)
+        blocks += re.findall(r'```swift\n(.*?)\n```', text, re.S)
 # Every Swift resource is compiled, including incremental tutorial steps. Use a
 # distinct enclosing type or function in each step when names overlap.
 for resource in sorted((catalog / 'Resources').rglob('*.swift')):

@@ -82,3 +82,58 @@ func updateDocumentationStreams(
 ```
 
 Pass `userID` when replacing sandbox credentials. REST client credentials and ticker credentials do not update each other. After explicit disconnect, register new streams, call `connect()`, and subscribe again. See <doc:Streaming-recovery> before choosing how your application handles interrupted delivery.
+
+## Use sandbox and independent consumer functions
+
+The sandbox factory requires a user ID. The consumer functions are independent building blocks; register all needed streams before connecting and use the structured lifecycle example above to own cleanup. Registering an order or lifecycle consumer after connection can miss initial events.
+
+```swift
+func sandboxTicker(apiKey: String, accessToken: String, userID: String) throws -> KiteTicker {
+	try KiteTicker(
+		apiKey: apiKey, accessToken: accessToken, userID: userID,
+		endpoint: URL(string: "wss://ws-sandbox.kite.trade")!,
+		transport: NIOKiteWebSocketTransport(),
+		reconnectPolicy: .init(
+			initialDelay: .seconds(1), maximumDelay: .seconds(30), maximumAttempts: 5))
+}
+
+func consumeMarket(ticker: KiteTicker, token: UInt32) async throws {
+	let stream = try await ticker.marketTicks(bufferCapacity: 256)
+	try await ticker.connect()
+	try await ticker.subscribe([token], mode: .full)
+	do {
+		for try await tick in stream { print(tick.instrumentToken, tick.lastPrice, tick.details) }
+	} catch {
+		await ticker.disconnect()
+		throw error
+	}
+	await ticker.disconnect()
+}
+
+// Run independent consumers in application-owned tasks on the same ticker.
+func consumeOrders(ticker: KiteTicker) async throws {
+	for try await event in try await ticker.orderUpdates(bufferCapacity: 256) {
+		print(event.update.orderID, event.update.status as Any)
+	}
+}
+
+func consumeLifecycle(ticker: KiteTicker) async throws {
+	for try await event in try await ticker.lifecycleEvents() {
+		switch event {
+		case .possibleDataGap: print("Reconcile orders and refresh application state")
+		case .authenticationRequired: print("Fresh credentials are required")
+		default: print(event)
+		}
+	}
+}
+
+func streamingControls(ticker: KiteTicker, token: UInt32, accessToken: String, userID: String)
+	async throws
+{
+	try await ticker.setMode(.quote, for: [token])
+	try await ticker.unsubscribe([token])
+	try await ticker.replaceCredentials(
+		apiKey: "sandboxdemo", accessToken: accessToken, userID: userID)
+	await ticker.disconnect()
+}
+```

@@ -124,3 +124,23 @@ Every mutation attempts once. See <doc:Trading-mutation-outcomes> for confirmed 
 - ``KiteAlertBasketItem``
 - ``KiteAlertOrderParameters``
 - ``KiteAlertBasketGTT``
+
+## Inspect a controlled alert lifecycle
+
+Use these calls only with a controlled transport. Each mutation requires a separate application decision after inspecting current state.
+
+```swift
+func controlledAlertLifecycle(
+	client: KiteClient, simple: KiteSimpleAlertRequest, ato: KiteATOAlertRequest, uuid: String
+) async throws {
+	_ = try await client.createAlert(simple)
+	_ = try await client.createAlert(ato)
+	_ = try await client.alerts(status: .enabled, page: 1, pageSize: 10)
+	_ = try await client.alert(uuid: uuid)
+	_ = try await client.alertHistory(uuid: uuid)
+	_ = try await client.modifyAlert(uuid: uuid, alert: simple)
+	_ = try await client.modifyAlert(uuid: uuid, alert: ato)
+	try await client.deleteAlert(uuid: uuid)
+	try await client.deleteAlerts(uuids: [uuid, "another-uuid"])
+}
+```

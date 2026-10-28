@@ -8,6 +8,8 @@ from urllib.parse import unquote, urlsplit
 
 archive = Path(sys.argv[1])
 errors = []
+if not (archive / 'index.html').is_file():
+    errors.append('Missing root renderer entry page')
 pages = list((archive / 'data').rglob('*.json'))
 if not pages:
     sys.exit('DocC produced no page data.')
@@ -40,11 +42,31 @@ for page in pages:
                 if not urlsplit(asset).scheme and not (archive / unquote(asset).lstrip('/')).is_file():
                     errors.append(f'{page.name}: missing asset {asset}')
 for route in ('documentation/kiteconnect', 'documentation/kiteconnect/create-a-client',
-              'documentation/kiteconnect/kiteconfiguration', 'documentation/kiteconnect/kiteclient'):
+              'documentation/kiteconnect/kiteconfiguration', 'documentation/kiteconnect/kiteclient',
+              'documentation/kiteconnect/request-and-response-contracts',
+              'tutorials/getting-started', 'tutorials/kiteconnect/first-request'):
     if not (archive / route / 'index.html').is_file():
-        errors.append(f'Missing foundation route: {route}')
-if not (archive / 'index/index.json').is_file():
+        errors.append(f'Missing required route: {route}')
+index = archive / 'index/index.json'
+if not index.is_file():
     errors.append('Missing navigation/search index')
+else:
+    def check_navigation(value):
+        if isinstance(value, dict):
+            route = value.get('path', '')
+            if route.startswith('/'):
+                path = unquote(urlsplit(route).path).lstrip('/')
+                if not (archive / path / 'index.html').is_file():
+                    errors.append(f'Missing navigation/search route: {route}')
+            for child in value.values():
+                check_navigation(child)
+        elif isinstance(value, list):
+            for child in value:
+                check_navigation(child)
+    navigation = json.loads(index.read_text())
+    if not navigation.get('interfaceLanguages'):
+        errors.append('Empty navigation/search index')
+    check_navigation(navigation)
 for html in archive.rglob('index.html'):
     for asset in re.findall(r'(?:src|href)="(/[^"?#]+)', html.read_text()):
         if asset.startswith(('/js/', '/css/')) and not (archive / unquote(asset).lstrip('/')).is_file():

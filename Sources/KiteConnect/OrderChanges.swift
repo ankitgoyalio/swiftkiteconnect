@@ -130,7 +130,11 @@ public enum KiteOrderSliceResult: Decodable, Sendable, Equatable {
         case orderID = "order_id"
     }
 
-    /// Decodes KiteOrderSliceResult from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes a placed receipt or a rejection, rejecting ambiguous objects containing both.
+    ///
+    /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
+    /// - Throws: A decoding error for missing or malformed required values. Optional
+    ///   fields allow absence or null, but malformed present values fail.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         if container.contains(.error) {
@@ -177,7 +181,10 @@ public indirect enum KiteOrderMutationJSONValue: Decodable, Sendable, Equatable 
     case array([KiteOrderMutationJSONValue])
     /// A JSON object retaining each named child value without a fixed schema.
     case object([String: KiteOrderMutationJSONValue])
-    /// Decodes KiteOrderMutationJSONValue from the supplied decoder, throwing when required fields are missing or malformed.
+    /// Decodes arbitrary rejection JSON recursively, retaining decimal numbers and explicit null.
+    ///
+    /// - Parameter decoder: The decoder positioned at any JSON value.
+    /// - Throws: A decoding error if the value cannot be represented by the supported JSON cases.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if container.decodeNil() {

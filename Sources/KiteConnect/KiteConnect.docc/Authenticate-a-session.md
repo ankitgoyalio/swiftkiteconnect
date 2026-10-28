@@ -64,3 +64,43 @@ If remote revocation is canceled or its response is lost, the remote outcome can
 Call ``KiteClient/renewSession(refreshToken:apiSecret:)`` only on a backend for a platform that Kite has approved for refresh tokens. Store any returned refresh token through your backend's credential store. An absent refresh token in ``KiteSessionRenewal`` does not synthesize a replacement.
 
 Use ``KiteClient/invalidateRefreshToken(_:)`` to revoke a refresh token independently of the installed access token. These operations follow the official SDK reference and have less upstream narrative coverage than the main login flow. They do not provide general perpetual login.
+
+## Use separate session operations
+
+Supply application-owned inputs and a configured client. These functions compile against the public SDK; routine verification does not call remote services.
+
+```swift
+import Foundation
+import KiteConnect
+
+func sandboxClient() throws -> KiteClient {
+	try KiteClient(apiKey: "sandboxdemo", configuration: .sandbox)
+}
+
+func sandboxLogin(client: KiteClient) throws -> URL {
+	try client.loginURL(
+		redirectParameters: "application_state=opaque-value",
+		endpoint: URL(string: "https://sandbox.kite.trade/connect/login")!)
+}
+
+// Backend only. Installs credentials after a validated response.
+func exchangeOnBackend(client: KiteClient, requestToken: String, apiSecret: String) async throws {
+	let session = try await client.exchangeRequestToken(requestToken, apiSecret: apiSecret)
+	print(session.profile.userID)  // Store tokens through your own credential store.
+	_ = try await client.profile()
+	_ = try await client.margins()
+	_ = try await client.margins(segment: .equity)
+}
+
+// Additional SDK-reference operations; refresh permission requires Kite approval.
+func approvedPlatformRenewal(client: KiteClient, refreshToken: String, apiSecret: String)
+	async throws
+{
+	_ = try await client.renewSession(refreshToken: refreshToken, apiSecret: apiSecret)
+	_ = try await client.invalidateRefreshToken(refreshToken)
+}
+
+func endSession(client: KiteClient) async throws {
+	_ = try await client.invalidateSession()
+}
+```

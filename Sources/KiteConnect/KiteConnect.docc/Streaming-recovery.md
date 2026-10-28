@@ -28,6 +28,12 @@ A nonpositive capacity throws during registration. When a buffer fills, the inco
 
 ``NIOKiteWebSocketTransport`` also has a separate bounded ingress buffer before ticker decoding. Its overflow fails the connection and can trigger recovery and a possible gap for all subscribers. Increasing a subscriber buffer does not change ingress capacity.
 
+## TLS and private trust roots
+
+``NIOKiteWebSocketTransport`` verifies certificates and hostnames using system trust roots by default. It provides no insecure verification switch. Its `trustRootsPEM` initializer argument replaces the roots for that transport instance with the supplied PEM certificates. It does not install certificates into the operating system.
+
+Private origins must present a certificate matching the requested hostname and chaining to the configured roots. The repository's public fixture CA is for loopback tests only. The [verification record](https://github.com/ankitgoyalio/swiftkiteconnect/blob/main/Documentation/Verification.md) retains platform and sandbox evidence separately from this behavior contract.
+
 ## Market-data ticks and order updates
 
 ``KiteMarketTick`` describes a quote update for an instrument token. Packet length determines whether ``KiteMarketTick/Details`` contains LTP, tradable quote or full fields, or index fields. ``KiteLTPTick`` is the last-price projection of every supported market-data layout. An instrument token can be reused after derivative expiry. Persistent instrument identity uses exchange and trading symbol.
@@ -35,3 +41,5 @@ A nonpositive capacity throws during registration. When a buffer fills, the inco
 ``KiteOrderUpdateEvent`` describes an order's state through ``KiteOrderUpdate``. It is separate from a market-data tick. A postback delivers an order update to a registered HTTP callback URL. A streamed order update does not authenticate an HTTP postback, and its optional checksum is only preserved during decoding. ``KiteBrokerEvent`` carries informational messages, error strings, and unknown text-event types separately.
 
 There is no missed-event replay and no automatic order reconciliation. After a possible gap, subscriber overflow, or reconnect, applications refresh market state and reconcile missed order updates with REST order history and trades. A notification alone does not establish execution. The task guide <doc:Connect-and-consume-streams> shows where to attach application handling. These contracts describe the development API and do not establish live trading qualification for the partial 0.x package.
+
+See <doc:Request-and-response-contracts> for the shared reference and <doc:First-request> for the introductory read-only tutorial.

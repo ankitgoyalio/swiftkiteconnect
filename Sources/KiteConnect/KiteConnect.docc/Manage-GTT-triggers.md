@@ -85,3 +85,18 @@ Every mutation attempts once. A malformed acknowledgement, including a nonpositi
 - ``KiteGTTConditionRequest``
 - ``KiteGTTOrderRequest``
 - ``KiteGTTReceipt``
+
+## Inspect a controlled trigger lifecycle
+
+Each mutation below requires a separate application decision after inspecting state; the functions illustrate API calls rather than an automatic strategy.
+
+```swift
+func controlledGTTLifecycle(client: KiteClient, definition: KiteGTTRequest) async throws {
+	let receipt = try await client.createGTT(definition)
+	_ = try await client.gttTriggers()
+	_ = try await client.gttTrigger(id: receipt.triggerID)
+	_ = try await client.modifyGTT(id: receipt.triggerID, trigger: definition)
+	_ = try await client.deleteGTT(id: receipt.triggerID)
+}
+
+```
