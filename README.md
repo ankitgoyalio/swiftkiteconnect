@@ -10,9 +10,10 @@ the `KiteConnect` library product and module.
 
 Start with the [DocC overview](Sources/KiteConnect/KiteConnect.docc/KiteConnect.md)
 and [first-request tutorial](Sources/KiteConnect/KiteConnect.docc/First-request.tutorial).
-[Build the browsable documentation](Documentation/DocC.md) locally. The planned
-site is `https://kiteconnect.ankitgoyal.io`; publication and domain setup belong
-to [#40](https://github.com/ankitgoyalio/swiftkiteconnect/issues/40).
+[Build the browsable documentation](Documentation/DocC.md) locally. Publication
+targets `https://kiteconnect.ankitgoyal.io`. Follow the
+[Pages setup and verification guide](Documentation/Pages.md) to complete DNS,
+HTTPS, and initial publication before treating the domain as live.
 
 See [capability coverage](Documentation/CapabilityCoverage.md),
 [qualification evidence](Documentation/Verification.md), and
