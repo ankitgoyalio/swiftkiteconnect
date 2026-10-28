@@ -18,12 +18,22 @@ for page in pages:
         route_path = urlsplit(route).path.lstrip('/').lower()
         if not (archive / route_path / 'index.html').is_file():
             errors.append(f'Missing direct static route: {route_path}')
-    for reference in data.get('references', {}).values():
+    # Native tutorial chapters are hierarchy nodes rendered inside their overview,
+    # not standalone pages. Their breadcrumb references have no static route.
+    hierarchy = data.get('hierarchy', {})
+    overview = hierarchy.get('reference', '')
+    overview_path = urlsplit(overview).path.lstrip('/').lower()
+    chapter_ids = set()
+    if (overview.startswith('doc://') and overview_path.startswith('tutorials/')
+            and (archive / overview_path / 'index.html').is_file()):
+        chapter_ids = {module['reference'] for module in hierarchy.get('modules', [])
+                       if module.get('reference', '').startswith(overview + '/')}
+    for identifier, reference in data.get('references', {}).items():
         url = reference.get('url', '')
         parsed = urlsplit(url)
         if not parsed.scheme and url.startswith('/'):
             path = unquote(parsed.path).lstrip('/')
-            if not ((archive / path).is_file() or (archive / path / 'index.html').is_file()):
+            if identifier not in chapter_ids and not ((archive / path).is_file() or (archive / path / 'index.html').is_file()):
                 errors.append(f'{page.name}: missing reference target {url}')
         for variant in reference.get('variants', []):
             for asset in variant.get('paths', []):

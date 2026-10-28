@@ -119,10 +119,20 @@ public struct KiteRequest: Sendable {
     }
 }
 
-/// Supplied authenticated credentials. Validated when constructing a client.
+/// Application-provided credentials for one API key and user session.
+///
+/// The value stores credentials in memory without validation or persistence.
+/// Client construction validates both values. See <doc:Authenticate-a-session>.
 public struct KiteSessionCredentials: Sendable {
+    /// The API key for the application that owns this user session.
     public let apiKey: String
+    /// The sensitive access token supplied by the application's authentication flow.
     public let accessToken: String
+    /// Stores credentials for subsequent validation by a client initializer.
+    ///
+    /// - Parameters:
+    ///   - apiKey: The application API key. This initializer stores it unchanged.
+    ///   - accessToken: The user's access token. This initializer stores it unchanged.
     public init(apiKey: String, accessToken: String) {
         self.apiKey = apiKey
         self.accessToken = accessToken
@@ -188,8 +198,17 @@ public actor KiteClient {
         )
     }
 
-    /// Requests already handed to the transport may complete with their original session.
-    /// Every request admitted after this returns uses the new token; nil clears it locally.
+    /// Replaces the access token in memory or clears it locally without remote revocation.
+    ///
+    /// Requests admitted after this method returns use the replacement. Requests already
+    /// handed to the transport may complete with their original session. In-flight
+    /// exchange or renewal responses cannot overwrite this replacement. Ticker credentials
+    /// and application credential storage remain separate.
+    ///
+    /// - Parameter token: A nonempty token without whitespace, control characters, or
+    ///   colons. Pass `nil` to clear local credentials. The API key remains unchanged.
+    /// - Throws: `KiteError.validation` if the replacement is invalid. Invalid input
+    ///   preserves the current token. This synchronous actor method sends no request.
     public func replaceAccessToken(_ token: String?) throws {
         if let token {
             try Self.validateCredential(token, field: "accessToken")
@@ -212,6 +231,14 @@ public actor KiteClient {
         }
     }
 
+    /// Fetches the authenticated user's account profile in one read-only request.
+    ///
+    /// No retry or session renewal occurs. See <doc:First-request> for a guided example.
+    ///
+    /// - Returns: The user's identity, account metadata, and enabled trading capabilities.
+    /// - Throws: `KiteError` for missing local credentials, transport failure, API
+    ///   rejection, or malformed response. Cancellation throws `CancellationError`.
+    ///   The installed credentials remain unchanged on success, failure, or cancellation.
     public func profile() async throws -> KiteUserProfile {
         try await execute(KiteRequest(path: "/user/profile"), as: KiteUserProfile.self)
     }

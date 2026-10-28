@@ -1,0 +1,55 @@
+@Tutorial(time: 20) {
+    @Intro(title: "Fetch your first user profile") {
+        Build a read-only integration that creates a login URL, accepts an access token from your backend, and fetches your user profile.
+
+        This tutorial assumes Swift 6.4, Swift Package Manager, and async/await. Use iOS 18+, macOS 15+, or Linux. You need a Kite Connect application API key, a registered redirect URL, and a backend that holds the API secret for token exchange. The package is unofficial and remains partial 0.x development software.
+
+        The helpers below have complete compilation context. Add each helper to your application, then call it from your application flow. Compilation alone sends no requests. The repository compiles these same resources offline without credentials. An authenticated walkthrough requires your own account and backend.
+    }
+
+    @Section(title: "Prepare and install the package") {
+        @ContentAndMedia {
+            First, confirm that your Kite application's redirect URL matches the callback that your application controls. Keep the API secret on your backend. This tutorial uses production login and REST routing.
+        }
+        @Steps {
+            @Step {
+                Add https://github.com/ankitgoyalio/swiftkiteconnect as a Swift package dependency. Select a reviewed revision because the package has no tagged release. Add the KiteConnect product to your application target, and create FirstRequest.swift with this code. Build the target, then call tutorialClient(apiKey:) with your application API key.
+
+                Expect a successful import and a client created without a network request. Invalid credential syntax throws a local validation error. The API secret is not an input to this helper.
+                @Code(name: "FirstRequest.swift", file: "FirstRequest-Install.swift")
+            }
+        }
+    }
+    @Section(title: "Authenticate through your application") {
+        @ContentAndMedia {
+            Your application presents the browser and handles its registered redirect. The SDK supplies the login URL. Your backend exchanges the short-lived request token once and returns the access token through your application's authenticated channel. See <doc:Authenticate-a-session> for the backend operation.
+        }
+        @Steps {
+            @Step {
+                Add this helper. Call tutorialLoginURL(client:) with the client from the previous step, then present the returned URL using your application's browser flow. Complete the Kite login.
+
+                Expect an HTTPS URL with v=3 and your API key, followed by a redirect to your registered callback after login. Validate the exact callback and any application state before forwarding the request token to your backend. The helper does not open a browser or handle the callback.
+                @Code(name: "FirstRequest.swift", file: "FirstRequest-Login.swift")
+            }
+            @Step {
+                After your backend confirms token exchange, pass its access token to tutorialInstallAccessToken(client:accessToken:). Await completion before starting the profile request. Store the token using your application's credential store.
+
+                Expect local credential replacement without a network request. An invalid token throws and preserves the previous credentials. Use one client for this API key and user session. Create a separate client for another user.
+                @Code(name: "FirstRequest.swift", file: "FirstRequest-Session.swift")
+            }
+        }
+    }
+    @Section(title: "Fetch the user profile") {
+        @ContentAndMedia {
+            Now, make the first authenticated request. This operation reads account details and places no order.
+        }
+        @Steps {
+            @Step {
+                Add this async helper. Call tutorialFetchProfile(client:) from your application's async entry point with the authenticated client.
+
+                Expect the returned profile and a printed user ID that matches the signed-in account. The actual ID depends on your account. A rejected or expired token throws KiteError.api. Cancellation throws CancellationError. The SDK does not retry or renew the session. Route authentication failures back through your application's login flow.
+                @Code(name: "FirstRequest.swift", file: "FirstRequest-Profile.swift")
+            }
+        }
+    }
+}

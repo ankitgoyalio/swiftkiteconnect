@@ -202,9 +202,73 @@ func validatePostback(body: Data, apiSecret: String) throws -> KitePostback {
   try KitePostbacks.decode(body, apiSecret: apiSecret)
 }
 
+// Backend only. The caller supplies the secret from backend configuration.
+// Authenticate the application request and validate its login flow before calling.
+func doccBackendExchange(
+	apiKey: String, requestToken: String, backendAPISecret: String
+) async throws -> KiteSessionCredentials {
+	let client = try KiteClient(apiKey: apiKey)
+	let session = try await client.exchangeRequestToken(
+		requestToken, apiSecret: backendAPISecret)
+	return KiteSessionCredentials(apiKey: session.apiKey, accessToken: session.accessToken)
+}
+
+func doccSandboxAuthentication(apiKey: String) throws -> (KiteClient, URL) {
+	let client = try KiteClient(apiKey: apiKey, configuration: .sandbox)
+	let login = try client.loginURL(
+		endpoint: URL(string: "https://sandbox.kite.trade/connect/login")!)
+	return (client, login)
+}
+
 func configuredSandboxClient(accessToken: String) throws -> KiteClient {
 	try KiteClient(
 		apiKey: "sandboxdemo",
 		accessToken: accessToken,
 		configuration: .sandbox)
+}
+
+//
+//  FirstRequest-Install.swift
+//  swiftkiteconnect
+//
+//  Created by Ankit Goyal on 28/10/2026.
+
+
+func tutorialClient(apiKey: String) throws -> KiteClient {
+    try KiteClient(apiKey: apiKey)
+}
+
+//
+//  FirstRequest-Login.swift
+//  swiftkiteconnect
+//
+//  Created by Ankit Goyal on 28/10/2026.
+
+
+func tutorialLoginURL(client: KiteClient) throws -> URL {
+    try client.loginURL()
+}
+
+//
+//  FirstRequest-Profile.swift
+//  swiftkiteconnect
+//
+//  Created by Ankit Goyal on 28/10/2026.
+
+
+func tutorialFetchProfile(client: KiteClient) async throws -> KiteUserProfile {
+    let profile = try await client.profile()
+    print(profile.userID)
+    return profile
+}
+
+//
+//  FirstRequest-Session.swift
+//  swiftkiteconnect
+//
+//  Created by Ankit Goyal on 28/10/2026.
+
+
+func tutorialInstallAccessToken(client: KiteClient, accessToken: String) async throws {
+    try await client.replaceAccessToken(accessToken)
 }
