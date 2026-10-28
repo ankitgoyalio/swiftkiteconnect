@@ -5,10 +5,9 @@ Audited 2026-10-27 against all 17 selected official pages in
 scope, **not a qualified 1.0 release**. macOS/iOS controlled tests do not establish
 remote endpoint success or Ubuntu compatibility. [Verification](Verification.md)
 records executed checks, the successful hosted Ubuntu run and #27 remote gaps.
-Publication blocker #29 is resolved. Both hosted checks passed on `ab9bc34`;
-latest local TLS/WSS additions await their own hosted matrix.
+[Verification](Verification.md) is the current source for platform and sandbox results.
 
-The independently extracted [inventory](Evidence/ticket-24-snapshot-inventory.json)
+The independently extracted [inventory](Snapshots/2026-10-27/inventory.json)
 contains 40 route-table rows and 178 headings. Reading the prose and curl examples
 adds GET `/user/margins` and POST `/portfolio/holdings/authorise`: **42 distinct
 method/route contracts**. Query variants, alert types and compact modes are counted
@@ -23,8 +22,7 @@ Every row is implemented and has controlled public-client protocol tests for
 request routing/encoding and typed response handling. Linked test files include
 negative/compatibility cases; their existence is not remote evidence. All HTTP
 operations share version/authentication, timeout, one-attempt, error and
-cancellation contracts. More detailed cases and original red-green records remain
-in the ticket guides. Examples below refer to functions in the
+cancellation contracts. API behavior and compatibility details are in [Contracts](Contracts.md). Examples below refer to functions in the
 [compiled usage examples](Usage.md), not to executed trading calls.
 
 | Official snapshot | Method and route | Implementation / public API | Public protocol tests | Compiled usage function |

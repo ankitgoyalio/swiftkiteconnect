@@ -52,7 +52,7 @@ for source in json.loads((snapshot / "manifest.json").read_text())["sources"]:
     records.append(dict(file=source["file"], url=source["url"], sha256_verified=True,
                         bytes=len(data), headings=parser.headings, endpoint_table=parser.rows))
 output = json.dumps(dict(snapshot="2026-10-27", sources=records), indent=2) + "\n"
-target = root / "Documentation/Evidence/ticket-24-snapshot-inventory.json"
+target = snapshot / "inventory.json"
 if "--write" in sys.argv:
     target.write_text(output)
 if target.read_text() != output:

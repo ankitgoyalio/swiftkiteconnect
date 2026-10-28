@@ -14,8 +14,9 @@ fi
 swift --version
 swift --version | grep -q 'Swift version 6.4'
 cat /etc/os-release
+python3 Scripts/check-documentation.py
 python3 Scripts/audit-snapshot.py
 python3 Scripts/check-documentation-examples.py
-node --test Documentation/Publisher.test.cjs
+node --test Tests/Publisher.test.cjs
 # Includes actual HTTP/WebSocket loopback, TLS trust rejection and controlled protocol tests.
 swift test

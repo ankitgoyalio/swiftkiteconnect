@@ -205,7 +205,7 @@ qualification claim. Source links identify the audited v3 snapshot as of
 Run focused, credential-free validation from the repository root:
 
 ```sh
-node --test Documentation/Publisher.test.cjs
+node --test Tests/Publisher.test.cjs
 ```
 
 The tests evaluate the examples using controlled DOM/plugin boundaries, without
@@ -221,9 +221,9 @@ and [agent setup prompt](https://kite.trade/docs/connect/v3/agent-setup/sandbox-
 cover sandbox authentication, `/oms` REST routing and LIMIT-only orders. They
 do not document a Publisher basket endpoint or a sandbox plugin configuration.
 Do not guess a sandbox basket URL or point the production plugin/form at a
-real account to fill that gap. No authenticated sandbox user credentials were
-available for this audit; no external API calls or order submissions were made.
-Public documentation reads are the only external traffic.
+real account to fill that gap. These Publisher examples execute only offline;
+current authenticated REST/streaming results are recorded separately in
+[Verification](Verification.md). No Publisher order submission is qualified.
 
 Publisher redirect success, cookies/popups, per-order results, holdings
 approval, and iOS/macOS browser integration remain unverified end to end.

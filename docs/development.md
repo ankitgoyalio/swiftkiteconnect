@@ -79,3 +79,19 @@ Run the hook's integration tests with:
 ```sh
 python3 -m unittest discover -s Tests/Hooks -p 'test_*.py'
 ```
+
+## Keep documentation durable
+
+Read [the documentation policy](../Documentation/README.md) before adding guides
+or evidence. Keep API contracts, reproducible instructions and pinned upstream
+sources in Git. Record implementation/review history on GitHub. Save raw logs,
+per-run JSON summaries and bundles in ignored `.test-results/` or CI artifacts.
+Keep qualification results in `Documentation/Verification.md` rather than repeated
+status pages. Never commit credentials, session files or agent execution reports.
+
+The hook runs `Scripts/check-documentation.py --staged` before other checks.
+It rejects historical report paths and non-document formats outside the pinned
+snapshot layout, even when forced into the index or marked generated. It checks
+local links using staged paths/content, so deletions and partial staging are
+handled together. CI runs the same policy against tracked working-tree files.
+Run `python3 Scripts/check-documentation.py` before submitting documentation changes.

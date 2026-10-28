@@ -49,7 +49,7 @@ Routine checks require no account or remote API access:
 swift test
 python3 Scripts/audit-snapshot.py
 python3 Scripts/check-documentation-examples.py
-node --test Documentation/Publisher.test.cjs
+node --test Tests/Publisher.test.cjs
 ```
 
 On this macOS host select full Xcode with

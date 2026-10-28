@@ -17,11 +17,8 @@ Run the same test locally:
 env KITE_SANDBOX_INSTRUMENT_SMOKE=1 swift test --filter instrumentsPublicSandboxSmoke
 ```
 
-On 2026-10-28 this test parsed 48 NSE records, and the demo login returned HTTP
-200 after redirect with a browser user agent. Python's default user agent received
-Cloudflare 403/1010, so availability depends on the request path/client. These
-results establish public access only; they do not establish authenticated access.
-See [retained evidence](Evidence/sandbox-public-2026-10-28.txt).
+Current results and authenticated-check outcomes are summarized in
+[Verification](Verification.md); raw output belongs in CI artifacts or `.test-results/`.
 
 ## Authenticated checks
 

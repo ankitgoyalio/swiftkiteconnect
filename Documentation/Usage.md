@@ -187,8 +187,8 @@ all five documented comparison operators, status/page filtering, history, repeat
 UUID deletion and ATO JSON baskets inside a form field. Basket models preserve
 basket-specific order parameters and optional nested GTT fields; standalone order
 rules are not applied to their zero-valued TTL/iceberg examples. Kite enforces
-account eligibility, active-alert limits and exchange rules. See construction
-examples in [GTT](Ticket-12.md), [simple alerts](Ticket-13.md) and [ATO](Ticket-14.md).
+account eligibility, active-alert limits and exchange rules. The examples above construct each variant;
+[Contracts](Contracts.md) describes validation and compatibility.
 GTT is explicitly unavailable in sandbox; remote alert/ATO behavior is unverified.
 
 ## Portfolio, exits and depository authorisation
@@ -240,7 +240,7 @@ API key/request ID finish URL are recognized; preserve unfamiliar statuses.
 Browser success is not independent proof of authorisation or of an order fill.
 The depository owns the PIN. The SDK owns neither browser UI nor PIN handling.
 The documented browser origin is `kite.zerodha.com`; no sandbox equivalent is
-specified, so this flow has not been exercised remotely. See [portfolio details](Ticket-15.md).
+specified, so this flow has not been exercised remotely. See [portfolio details](Contracts.md).
 
 ## Margin calculations and mutual funds
 
@@ -274,8 +274,7 @@ route. The order list covers seven days; individual order lookup is not age-limi
 SIPs include active/paused plans and documented -1 instalment sentinels. The
 snapshot excludes dividend reinvestment schemes. Fractional
 fund units and financial values use Decimal. MF CSV is authenticated and uses the
-sandbox `/oms` prefix, unlike the equity dump. See [calculations](Ticket-16.md) and
-[mutual funds](Ticket-17.md) for request construction and snapshot inconsistencies.
+sandbox `/oms` prefix, unlike the equity dump. See [Contracts](Contracts.md) for calculation and mutual-fund response semantics.
 
 ## Streaming and recovery
 
@@ -378,7 +377,7 @@ of execution or freshness. WebSocket updates use the same order model but do not
 perform backend-secret checksum verification. HTTP postbacks can arrive while a user is logged out and cover orders placed
 by the app API key; user WebSocket updates can include orders placed elsewhere.
 Deduplicate and reconcile by observed order state rather than delivery count.
-See [postback details](Ticket-22.md).
+See [postback details](Contracts.md).
 
 [Publisher guidance](Publisher.md) covers offsite browser form POST, static branded
 and custom buttons, dynamic baskets, ready/add/render/link/redirect/callback APIs,
