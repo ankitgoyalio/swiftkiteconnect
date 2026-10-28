@@ -1,6 +1,7 @@
 # Documentation
 
 - [DocC build](DocC.md): canonical catalog, static artifact, and complete symbol coverage.
+- [Pages publication](Pages.md): dedicated domain setup, deployment, and live verification.
 - [Usage](Usage.md): pointer to canonical DocC task guides.
 - [Contracts](Contracts.md): pointer to canonical DocC contracts.
 - [Publisher](Publisher.md): application-owned browser integration.

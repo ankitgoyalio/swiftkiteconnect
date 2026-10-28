@@ -5,6 +5,7 @@ from pathlib import Path
 import shutil
 import subprocess
 import sys
+import tarfile
 
 ROOT = Path(__file__).resolve().parents[1]
 os.chdir(ROOT)
@@ -46,4 +47,13 @@ run(docc, 'convert', str(CATALOG), '--additional-symbol-graph-dir', str(module_g
     '--fallback-display-name', 'KiteConnect', '--warnings-as-errors',
     '--transform-for-static-hosting')
 run('python3', 'Scripts/check-documentation-site.py', str(archive))
+site = OUTPUT / 'site'
+run('python3', 'Scripts/prepare-documentation-site.py', str(archive), str(site))
+run('python3', 'Scripts/check-documentation-site.py', str(site))
+# DocC symbol filenames contain colons. Preserve them inside a tar file because
+# upload-artifact rejects colons in individual uploaded paths.
+with tarfile.open(OUTPUT / 'docc-validation.tar', 'w') as bundle:
+    for path in (archive, site, OUTPUT / 'public-api-inventory.json'):
+        bundle.add(path, arcname=path.name)
 print(f'Static documentation artifact: {archive.relative_to(ROOT)}')
+print(f'Pages artifact root: {site.relative_to(ROOT)}')

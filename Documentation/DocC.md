@@ -1,6 +1,7 @@
 # Build the DocC site
 
-Use Swift 6.4, Python 3, and the toolchain's DocC compiler. On macOS, select full
+Use Swift 6.4, Python 3, and the toolchain's DocC compiler. The workflow regression
+test also uses macOS's Ruby YAML parser. On macOS, select full
 Xcode before running the build:
 
 ```fish
@@ -16,9 +17,10 @@ python3 Scripts/build-documentation.py
 The command extracts the public symbol graph with SwiftPM, requires comments on every authored public declaration, and converts the catalog with warnings treated as errors.
 It checks generated direct routes, internal references, renderer assets, and the
 navigation/search index. The static artifact is
-`.build/documentation/KiteConnect.doccarchive`. The hosting base path is empty
-for the planned `kiteconnect.ankitgoyal.io` domain. DNS, HTTPS, and publication
-are separate work. This command does not deploy the site.
+`.build/documentation/KiteConnect.doccarchive`. The build also prepares
+`.build/documentation/site` for publication at `kiteconnect.ankitgoyal.io`.
+The hosting base path is empty. This command does not deploy the site.
+Follow [the Pages setup guide](Pages.md) to configure and verify publication.
 
 ## Validate examples
 
@@ -77,17 +79,23 @@ in `Scripts/check-documentation.py`.
 
 ## Prepare the root-hosted artifact
 
-The build uses DocC's static-hosting transform without a hosting base path. Serve
-all archive contents at the domain root. The package landing route is
+The build uses DocC's static-hosting transform without a hosting base path.
+`prepare-documentation-site.py` copies the archive to a clean `site` directory,
+adds `CNAME` and `.nojekyll`, and replaces only the root renderer with a redirect
+and fallback link to the package overview. The package landing route is
 `/documentation/kiteconnect/`; tutorial routes start at `/tutorials/`. Preserve the
 `data`, `index`, `js`, `css`, `images`, and `downloads` directories when present.
 Do not add a repository-name prefix. The offline site check verifies generated
 page routes, reference targets, tutorial resources, renderer assets, and searchable
 navigation targets. Direct routes each contain an `index.html` for reloads.
 
-CI validates pull requests and uploads the archive without publishing. Issue
-[#40](https://github.com/ankitgoyalio/swiftkiteconnect/issues/40) owns the Pages
-workflow, root landing behavior, DNS, custom domain, HTTPS, and live reload checks.
-Before deployment, run the commands above and the existing Apple and Ubuntu
-qualification jobs. Do not infer live hosting or authenticated trading qualification
-from an offline archive check. Keep generated output and raw logs outside Git.
+Upload the contents of `site` at the domain root, without an enclosing `site`
+or archive directory. Keep the coverage inventory and symbol graphs outside that
+publication directory. CI retains both the archive and prepared site in the
+`docc-site` validation artifact inside `docc-validation.tar`, because the artifact
+service rejects colons in individual DocC symbol filenames. Only successful pushes to `main` can publish the
+`github-pages` artifact, after both Apple and Ubuntu qualification jobs succeed.
+Pull requests and manual runs validate without deploying. See
+[Pages setup and verification](Pages.md) for the external prerequisites.
+Do not infer live hosting or authenticated trading qualification from an offline
+archive check. Keep generated output and raw logs outside Git.
