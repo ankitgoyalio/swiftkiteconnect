@@ -22,6 +22,14 @@ The configuration and client reference is the first completed documentation slic
 - ``KiteConfiguration``
 - ``KiteClient``
 
+### Receive HTTP order notifications
+
+- <doc:Receive-HTTP-postbacks>
+- <doc:Postbacks-and-order-updates>
+- ``KitePostbacks``
+- ``KitePostback``
+- ``KitePostbackError``
+
 ### Integrate Publisher in a browser
 
 - <doc:Publisher-integration>
