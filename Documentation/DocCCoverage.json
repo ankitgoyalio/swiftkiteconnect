@@ -24,6 +24,7 @@
       "KitePostbackError/invalidChecksum",
       "KitePostbacks",
       "KitePostbacks/decode(_:apiSecret:tradingTimeZone:)"
-    ]
+    ],
+    "38-publisher-guidance": []
   }
 }
