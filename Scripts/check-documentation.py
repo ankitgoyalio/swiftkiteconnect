@@ -11,7 +11,7 @@ from urllib.parse import unquote, urlsplit
 
 GUIDES = {"README.md", "Usage.md", "Contracts.md", "Coverage.md", "CapabilityCoverage.md",
           "Publisher.md", "Verification.md", "SandboxVerification.md",
-          "DocC.md", "DocCCoverage.json"}
+          "DocC.md", "DocCCoverage.json", "DocCCoverage/34-orders-gtt-and-alerts.json"}
 
 
 def git(*args):
