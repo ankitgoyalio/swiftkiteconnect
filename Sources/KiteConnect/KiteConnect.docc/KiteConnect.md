@@ -21,3 +21,11 @@ The configuration and client reference is the first completed documentation slic
 - <doc:Create-a-client>
 - ``KiteConfiguration``
 - ``KiteClient``
+
+### Receive HTTP order notifications
+
+- <doc:Receive-HTTP-postbacks>
+- <doc:Postbacks-and-order-updates>
+- ``KitePostbacks``
+- ``KitePostback``
+- ``KitePostbackError``
