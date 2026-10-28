@@ -201,20 +201,35 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
 
     func send(text: String) async throws {
         try Task.checkCancellation()
-        guard let socket = state.withLock({ $0.stopped ? nil : $0.socket }) else {
-            throw KiteTickerError.connectionClosed
-        }
-        let promise = socket.eventLoop.makePromise(of: Void.self)
-        socket.send(text, promise: promise)
         do {
             try await withTaskCancellationHandler {
-                try await promise.futureResult.get()
+                try await withCheckedThrowingContinuation { (done: CheckedContinuation<Void, any Error>) in
+                    // Admit the write and its completion callback before stop can
+                    // retire the loop. Even attaching a callback to a completed NIO
+                    // future after loop shutdown can strand the awaiting task.
+                    let admitted = state.withLock { state in
+                        guard !state.stopped, let socket = state.socket else { return false }
+                        // Always enqueue: socket callbacks can reenter stop.
+                        socket.eventLoop.execute {
+                            let promise = socket.eventLoop.makePromise(of: Void.self)
+                            promise.futureResult.whenComplete { done.resume(with: $0) }
+                            socket.send(text, promise: promise)
+                        }
+                        return true
+                    }
+                    if !admitted {
+                        done.resume(throwing: KiteTickerError.connectionClosed)
+                    }
+                }
             } onCancel: {
                 self.stop(CancellationError())
             }
         } catch {
             if Task.isCancelled {
                 throw CancellationError()
+            }
+            if error as? KiteTickerError == .connectionClosed {
+                throw KiteTickerError.connectionClosed
             }
             throw KiteTickerError.transport("WebSocket write failed")
         }
@@ -228,6 +243,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
     }
 
     func stop(_ error: any Error?) {
+        let (closeSubmission, closeSubmitted) = AsyncStream<Void>.makeStream()
         let actions = state.withLock {
             state -> (
                 CheckedContinuation<any KiteWebSocketConnection, any Error>?, WebSocket?, [any Channel],
@@ -240,6 +256,9 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
             state.socket = nil
             state.channels = []
             state.shutdown = Task { [group, bootstrapCompletion] in
+                // A channel may already be closed; its closeFuture alone does not
+                // fence the close calls submitted below from another thread.
+                for await _ in closeSubmission {}
                 // Closing a channel can precede completion of ClientBootstrap's promises.
                 // Drain the complete attempt and every candidate before retiring its loops.
                 for await _ in bootstrapCompletion {}
@@ -264,6 +283,7 @@ private final class NIOKiteConnection: KiteWebSocketConnection {
         for channel in channels {
             channel.close(promise: nil)
         }
+        closeSubmitted.finish()
     }
 }
 

@@ -96,9 +96,12 @@ jobs:
           python3 Scripts/audit-snapshot.py
           python3 Scripts/check-documentation-examples.py
           node --test Documentation/Publisher.test.cjs
-      - name: macOS public protocol and real loopback HTTP tests
+      - name: Build macOS tests
         timeout-minutes: 15
-        run: swift test
+        run: swift build --build-tests
+      - name: macOS public protocol and real loopback HTTP tests
+        timeout-minutes: 3
+        run: python3 Scripts/test-macos.py
       - name: Constrained-executor HTTP regression
         timeout-minutes: 3
         run: env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10
