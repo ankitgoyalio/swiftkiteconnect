@@ -359,6 +359,195 @@ func exitPortfolioPosition(client: KiteClient, position: KitePosition, price: De
 	return try await client.placeOrder(order)
 }
 
+func makeSingleTrigger() throws -> KiteGTTRequest {
+	let instrument = try KiteInstrumentIdentity(exchange: .nse, tradingSymbol: "INFY")
+	let condition = KiteGTTConditionRequest(
+		instrument: instrument, triggerValues: [1500], lastPrice: 1450)
+	let order = KiteGTTOrderRequest(
+		instrument: instrument, transactionType: .buy, quantity: 1, product: .cnc, price: 1501)
+	return KiteGTTRequest(type: .single, condition: condition, orders: [order])
+}
+
+func makeOCOTrigger() throws -> KiteGTTRequest {
+	let instrument = try KiteInstrumentIdentity(exchange: .nse, tradingSymbol: "INFY")
+	let condition = KiteGTTConditionRequest(
+		instrument: instrument, triggerValues: [1400, 1600], lastPrice: 1500)
+	let stop = KiteGTTOrderRequest(
+		instrument: instrument, transactionType: .sell, quantity: 1, product: .cnc, price: 1399)
+	let target = KiteGTTOrderRequest(
+		instrument: instrument, transactionType: .sell, quantity: 1, product: .cnc, price: 1600)
+	return KiteGTTRequest(type: .twoLeg, condition: condition, orders: [stop, target])
+}
+
+func inspectStoredTriggers(client: KiteClient, triggerID: Int64) async throws {
+	let recent = try await client.gttTriggers()
+	let trigger = try await client.gttTrigger(id: triggerID)
+	print(recent.count, trigger.status)
+	for order in trigger.orders {
+		print(order.result?.orderResult as Any)
+	}
+}
+
+func createControlledTrigger(client: KiteClient, definition: KiteGTTRequest) async throws -> Int64 {
+	let receipt = try await client.createGTT(definition)
+	return receipt.triggerID
+}
+
+func replaceControlledTrigger(
+	client: KiteClient, triggerID: Int64, completeDefinition: KiteGTTRequest
+) async throws {
+	_ = try await client.modifyGTT(id: triggerID, trigger: completeDefinition)
+}
+
+func deleteControlledTrigger(client: KiteClient, triggerID: Int64) async throws {
+	_ = try await client.deleteGTT(id: triggerID)
+}
+
+func makeSimplePriceAlert() -> KiteSimpleAlertRequest {
+	let instrument = KiteAlertInstrument(
+		exchange: .nse, tradingSymbol: "INFY", attribute: "LastTradedPrice")
+	let condition = KiteAlertCondition(
+		lhs: instrument, comparison: .greaterThanOrEqual, rhs: .constant(1500))
+	return KiteSimpleAlertRequest(name: "INFY price", condition: condition)
+}
+
+func makeRelativePriceAlert() -> KiteSimpleAlertRequest {
+	let left = KiteAlertInstrument(
+		exchange: .nse, tradingSymbol: "INFY", attribute: "LastTradedPrice")
+	let right = KiteAlertInstrument(
+		exchange: .nse, tradingSymbol: "TCS", attribute: "LastTradedPrice")
+	return KiteSimpleAlertRequest(
+		name: "Relative price",
+		condition: KiteAlertCondition(lhs: left, comparison: .lessThan, rhs: .instrument(right)))
+}
+
+func makeBasketPriceAlert() -> KiteATOAlertRequest {
+	let instrument = KiteAlertInstrument(
+		exchange: .nse, tradingSymbol: "INFY", attribute: "LastTradedPrice")
+	let condition = KiteAlertCondition(
+		lhs: instrument, comparison: .greaterThan, rhs: .constant(1500))
+	var parameters = KiteAlertOrderParameters(
+		transactionType: .buy, product: .cnc, orderType: .limit, quantity: 1)
+	parameters.price = 1501
+	parameters.validityTTL = 0
+	parameters.icebergLegs = 0
+	parameters.tags = ["example34"]
+	parameters.gtt = KiteAlertBasketGTT(target: 1600, stoploss: 1400)
+	let item = KiteAlertBasketItem(tradingSymbol: "INFY", exchange: .nse, params: parameters)
+	let basket = KiteAlertBasket(name: "INFY basket", items: [item])
+	return KiteATOAlertRequest(name: "INFY basket alert", condition: condition, basket: basket)
+}
+
+func inspectPriceAlerts(client: KiteClient, uuid: String) async throws {
+	let page = try await client.alerts(status: .enabled, page: 1, pageSize: 10)
+	let alert = try await client.alert(uuid: uuid)
+	let history = try await client.alertHistory(uuid: uuid)
+	print(page.count, alert.status, history.count)
+	for entry in history { print(entry.orderMetadata) }
+}
+
+func createControlledPriceAlerts(
+	client: KiteClient, simple: KiteSimpleAlertRequest, basket: KiteATOAlertRequest
+) async throws {
+	let simpleReceipt = try await client.createAlert(simple)
+	print("Created simple alert", simpleReceipt.uuid)
+	let basketReceipt = try await client.createAlert(basket)
+	print("Created basket alert", basketReceipt.uuid)
+}
+
+func replaceControlledSimpleAlert(
+	client: KiteClient, uuid: String, completeDefinition: KiteSimpleAlertRequest
+) async throws {
+	_ = try await client.modifyAlert(uuid: uuid, alert: completeDefinition)
+}
+
+func replaceControlledBasketAlert(
+	client: KiteClient, uuid: String, completeDefinition: KiteATOAlertRequest
+) async throws {
+	_ = try await client.modifyAlert(uuid: uuid, alert: completeDefinition)
+}
+
+func deleteControlledPriceAlert(client: KiteClient, uuid: String) async throws {
+	try await client.deleteAlert(uuid: uuid)
+}
+
+func deleteControlledPriceAlerts(client: KiteClient, uuids: [String]) async throws {
+	try await client.deleteAlerts(uuids: uuids)
+}
+
+func inspectTradingDay(client: KiteClient, orderID: String) async throws {
+	let book = try await client.orders()
+	let history = try await client.orderHistory(orderID: orderID)
+	let trades = try await client.trades()
+	let fills = try await client.orderTrades(orderID: orderID)
+	print(book.count, history.count, trades.count, fills.count)
+}
+
+func submitControlledLimit(client: KiteClient, limitPrice: Decimal) async throws
+	-> KiteOrderPlacementResult
+{
+	var request = KiteOrderPlacement(
+		tradingSymbol: "INFY", exchange: .nse, transactionType: .buy,
+		orderType: .limit, quantity: 1, product: .cnc)
+	request.price = limitPrice
+	request.tag = "example34"
+	return try await client.placeOrder(request)
+}
+
+func inspectPlacementReceipt(_ result: KiteOrderPlacementResult) {
+	switch result {
+	case .order(let receipt):
+		print("Submitted order", receipt.orderID)
+		for child in receipt.children ?? [] { print(child) }
+	case .slices(let slices):
+		for slice in slices {
+			switch slice {
+			case .placed(let receipt): print("Submitted slice", receipt.orderID)
+			case .rejected(let failure): print(failure.code, failure.errorType, failure.message)
+			}
+		}
+	}
+}
+
+func changeControlledLimit(client: KiteClient, orderID: String, newPrice: Decimal) async throws {
+	var changes = KiteOrderModification()
+	changes.price = newPrice
+	let receipt = try await client.modifyOrder(orderID: orderID, changes: changes)
+	print("Modification submitted", receipt.orderID)
+}
+
+func requestControlledCancellation(
+	client: KiteClient, orderID: String, variety: KiteOrderMutationVariety,
+	parentOrderID: String? = nil
+) async throws {
+	let receipt = try await client.cancelOrder(
+		orderID: orderID, variety: variety, parentOrderID: parentOrderID)
+	print("Cancellation submitted", receipt.orderID)
+}
+
+func submitControlledOrderWithOutcome(
+	client: KiteClient, request: KiteOrderPlacement
+) async throws -> String {
+	do {
+		let result = try await client.placeOrder(request)
+		inspectPlacementReceipt(result)
+		return "Submission acknowledged; reconcile order state and trades"
+	} catch is CancellationError {
+		return "Local task cancelled; reconcile before another mutation"
+	} catch let error as KiteError {
+		switch error {
+		case .validation(let field, let message):
+			return "Local validation failed for \(field): \(message)"
+		case .api(let failure):
+			return "API rejected request: \(failure.statusCode), \(failure.errorType ?? "unknown"), \(failure.message)"
+		case .uncertainOutcome:
+			return "Outcome uncertain; reconcile before another mutation"
+		default:
+			throw error
+		}
+	}
+}
+
 func inspectFundActivity(client: KiteClient, orderID: String)
 	async throws -> [KiteMutualFundSIP]
 {

@@ -229,6 +229,7 @@
     ]
   },
   "sliceFiles": {
-    "35-margins-portfolio-and-mutual-funds": "DocCCoveragePortfolio.json"
+    "35-margins-portfolio-and-mutual-funds": "DocCCoveragePortfolio.json",
+    "34-orders-gtt-and-alerts": "DocCCoverageOrders.json"
   }
 }

@@ -74,3 +74,10 @@ python3 Scripts/check-documentation-coverage.py .build/documentation/symbols --r
 The foundation's slice policy does not waive the complete-coverage requirement
 in ADR-0013. CI uploads generated output as an artifact and never publishes it.
 Keep canonical authored sources in Git. Do not commit `.doccarchive` output.
+
+Large completed slices can use separate JSON arrays listed in the `sliceFiles`
+object of `DocCCoverage.json`. The audit loads these files together with inline
+slices and rejects duplicate slice names. Register each new file in
+`Scripts/check-documentation.py`. Keep each authored file below 20,000 bytes.
+The [orders, GTT, and alerts slice](DocCCoverageOrders.json) uses this layout
+to preserve every explicit declaration target.
