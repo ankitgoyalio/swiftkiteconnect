@@ -1,7 +1,29 @@
-# Authenticated sandbox verification
+# Sandbox verification
 
 Issue [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) tracks remote evidence separately from fixture tests.
 The opt-in `authenticated sandbox verification` test uses only the SDK's sandbox configuration and sandbox WebSocket origin. It never falls back to production.
+
+## Public smoke
+
+CI runs the existing public NSE instrument test once on Ubuntu after the offline
+suite. It uses the Swift SDK's sandbox configuration without credentials and
+requires a nonempty catalogue with NSE exchange values. The step is nonblocking:
+network, Cloudflare and sandbox outages are visible in the job summary and
+`sandbox-public.txt` artifact, separately from deterministic qualification.
+
+Run the same test locally:
+
+```fish
+env KITE_SANDBOX_INSTRUMENT_SMOKE=1 swift test --filter instrumentsPublicSandboxSmoke
+```
+
+On 2026-10-28 this test parsed 48 NSE records, and the demo login returned HTTP
+200 after redirect with a browser user agent. Python's default user agent received
+Cloudflare 403/1010, so availability depends on the request path/client. These
+results establish public access only; they do not establish authenticated access.
+See [retained evidence](Evidence/sandbox-public-2026-10-28.txt).
+
+## Authenticated checks
 
 Supply a private JSON file outside this repository with `access_token` and `user_id` from a sandbox session. The demo API key is fixed to `sandboxdemo`. Tokens must never be committed, logged or posted to GitHub. When running through an agent, use the private secret input rather than chat.
 

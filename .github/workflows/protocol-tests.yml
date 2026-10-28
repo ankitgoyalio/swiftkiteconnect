@@ -47,6 +47,24 @@ jobs:
           set -euo pipefail
           mkdir -p .test-results
           bash Scripts/test-ubuntu.sh 2>&1 | tee .test-results/ubuntu.txt
+      # External availability is reported separately from deterministic qualification.
+      - name: Public sandbox SDK smoke (nonblocking)
+        id: sandbox
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          KITE_SANDBOX_INSTRUMENT_SMOKE: '1'
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift test --skip-build --filter instrumentsPublicSandboxSmoke 2>&1 | tee .test-results/sandbox-public.txt
+      - name: Report public sandbox outcome
+        if: always()
+        env:
+          SANDBOX_OUTCOME: ${{ steps.sandbox.outcome }}
+        run: |
+          echo "Public sandbox SDK smoke: $SANDBOX_OUTCOME (external availability; nonblocking)." >> "$GITHUB_STEP_SUMMARY"
+          echo 'No authenticated API or trading qualification is implied. See issue #27.' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
