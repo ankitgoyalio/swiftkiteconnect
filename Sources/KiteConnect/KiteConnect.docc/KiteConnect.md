@@ -12,7 +12,7 @@ Use ``KiteClient`` for REST operations and ``KiteTicker`` for streaming. A marke
 
 Applications own browser presentation, redirect handling, credential storage, and reconciliation. Secret-bearing token exchange belongs on a backend for publicly distributed applications. Each client represents one API key and user session. Requests attempt once without automatic retries. Reconcile uncertain trading mutations before another action. Each ticker owns one connection. Missed streaming events are not replayed.
 
-Completed slices document configuration, orders, GTT, alerts, market data, portfolio, mutual funds, streaming, and postbacks. Other generated symbol pages may lack descriptions until their slices are complete. Complete meaningful public API documentation remains a release requirement.
+Completed slices document configuration, client setup, authentication, user profiles, orders, GTT, alerts, market data, portfolio, mutual funds, streaming, and postbacks. Other generated symbol pages may lack descriptions until their slices are complete. Complete meaningful public API documentation remains a release requirement.
 
 ## Topics
 
@@ -21,6 +21,24 @@ Completed slices document configuration, orders, GTT, alerts, market data, portf
 - <doc:Create-a-client>
 - ``KiteConfiguration``
 - ``KiteClient``
+
+### Authenticate and fetch a profile
+
+- <doc:Getting-started>
+- <doc:First-request>
+- <doc:Authenticate-a-session>
+- <doc:Authentication-ownership>
+- ``KiteSession``
+- ``KiteSessionCredentials``
+- ``KiteSessionRenewal``
+- ``KiteUserProfile``
+- ``KiteClient/loginURL(redirectParameters:endpoint:)``
+- ``KiteClient/exchangeRequestToken(_:apiSecret:)``
+- ``KiteClient/replaceAccessToken(_:)``
+- ``KiteClient/profile()``
+- ``KiteClient/invalidateSession()``
+- ``KiteClient/renewSession(refreshToken:apiSecret:)``
+- ``KiteClient/invalidateRefreshToken(_:)``
 
 ### Orders, GTT, and alerts
 
