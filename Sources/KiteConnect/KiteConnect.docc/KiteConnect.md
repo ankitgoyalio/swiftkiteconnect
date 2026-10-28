@@ -12,7 +12,7 @@ Use ``KiteClient`` for REST operations and ``KiteTicker`` for streaming. A marke
 
 Applications own browser presentation, redirect handling, credential storage, and reconciliation. Secret-bearing token exchange belongs on a backend for publicly distributed applications. Each client represents one API key and user session. Requests attempt once without automatic retries. Reconcile uncertain trading mutations before another action. Each ticker owns one connection. Missed streaming events are not replayed.
 
-The configuration, client, authentication, and user-profile references have completed documentation slices. Other generated symbol pages may lack descriptions until their slices are complete. Complete meaningful public API documentation remains a release requirement.
+The configuration, client, authentication, user-profile, and streaming references have completed documentation slices. Other generated symbol pages may lack descriptions until their slices are complete. Complete meaningful public API documentation remains a release requirement.
 
 ## Topics
 
@@ -39,6 +39,24 @@ The configuration, client, authentication, and user-profile references have comp
 - ``KiteClient/invalidateSession()``
 - ``KiteClient/renewSession(refreshToken:apiSecret:)``
 - ``KiteClient/invalidateRefreshToken(_:)``
+
+### Stream market data and order updates
+
+- <doc:Connect-and-consume-streams>
+- <doc:Streaming-recovery>
+- ``KiteTicker``
+- ``KiteTickerMode``
+- ``KiteMarketTick``
+- ``KiteLTPTick``
+- ``KiteOrderUpdateEvent``
+- ``KiteBrokerEvent``
+- ``KiteTickerLifecycleEvent``
+- ``KiteTickerError``
+- ``KiteTickerReconnectPolicy``
+- ``KiteWebSocketTransport``
+- ``KiteWebSocketConnection``
+- ``KiteWebSocketMessage``
+- ``NIOKiteWebSocketTransport``
 
 ### Receive HTTP order notifications
 
