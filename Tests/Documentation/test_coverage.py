@@ -16,9 +16,10 @@ class CoverageDeliveryTests(unittest.TestCase):
             (root / 'symbols').mkdir()
             script = Path(__file__).resolve().parents[2] / 'Scripts/check-documentation-coverage.py'
             shutil.copy(script, root / 'Scripts')
-            (root / 'Documentation/DocCCoverage.json').write_text('{"completedSlices": {}}')
-            (root / 'Documentation/DocCCoverage/orders.json').write_text(
-                '{"completedSlices": {"orders": ["KiteOrder"]}}')
+            (root / 'Documentation/DocCCoverage.json').write_text(
+                '{"completedSlices": {}, "sliceFiles": {"orders": "DocCCoverageOrders.json"}}')
+            (root / 'Documentation/DocCCoverageOrders.json').write_text(
+                '["KiteOrder"]')
             symbol = {
                 'identifier': {'precise': 'test-order'},
                 'pathComponents': ['KiteOrder'],
@@ -38,8 +39,8 @@ class CoverageDeliveryTests(unittest.TestCase):
             documented = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(documented.returncode, 0, documented.stderr)
             # A stale target must fail even if every remaining symbol is documented.
-            (root / 'Documentation/DocCCoverage/orders.json').write_text(
-                '{"completedSlices": {"orders": ["RemovedOrder"]}}')
+            (root / 'Documentation/DocCCoverageOrders.json').write_text(
+                '["RemovedOrder"]')
             stale = subprocess.run(command, capture_output=True, text=True)
             self.assertNotEqual(stale.returncode, 0)
             self.assertIn('declared coverage target is missing: RemovedOrder', stale.stderr)

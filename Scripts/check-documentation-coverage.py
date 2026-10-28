@@ -11,13 +11,11 @@ parser.add_argument('--require-complete', action='store_true', help='Require doc
 args = parser.parse_args()
 root = Path(__file__).resolve().parents[1]
 policy = json.loads((root / 'Documentation/DocCCoverage.json').read_text())
-# Keep independently reviewed slices below the authored-file size limit.
-for slice_file in sorted((root / 'Documentation/DocCCoverage').glob('*.json')):
-    additions = json.loads(slice_file.read_text())['completedSlices']
-    duplicates = policy['completedSlices'].keys() & additions.keys()
-    if duplicates:
-        sys.exit(f'{slice_file.name}: duplicate completed slices: {sorted(duplicates)}')
-    policy['completedSlices'].update(additions)
+# Large slices live in separate manifests to respect the authored file-size limit.
+for name, filename in policy.get('sliceFiles', {}).items():
+    if name in policy['completedSlices']:
+        sys.exit(f'Duplicate coverage slice: {name}')
+    policy['completedSlices'][name] = json.loads((root / 'Documentation' / filename).read_text())
 symbols = {}
 for graph in args.symbol_graphs.glob('KiteConnect*.symbols.json'):
     for symbol in json.loads(graph.read_text())['symbols']:

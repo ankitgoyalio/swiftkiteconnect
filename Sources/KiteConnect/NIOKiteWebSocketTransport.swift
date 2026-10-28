@@ -17,11 +17,19 @@ import WebSocketKit
 /// Each connection owns one event loop and socket, and releases both on close/cancellation.
 /// TLS verifies certificates and hostnames. Private origins may supply explicit trust anchors.
 public struct NIOKiteWebSocketTransport: KiteWebSocketTransport {
+    /// Maximum handshake wait in seconds. Valid values are finite and in 0...3600, excluding zero.
     public let connectTimeout: TimeInterval
+    /// Positive capacity for ordered inbound messages before ticker decoding.
+    /// Overflow fails the connection, unlike a ticker subscriber overflow.
     public let incomingBufferCapacity: Int
     /// Optional PEM trust anchors replace system roots for this transport only.
     /// Certificate-chain and hostname verification remain enabled.
     public let trustRootsPEM: Data?
+    /// Stores connection bounds and optional private trust roots. Validation occurs on connect.
+    /// - Parameters:
+    ///   - connectTimeout: Positive finite handshake timeout, at most 3600 seconds.
+    ///   - incomingBufferCapacity: Positive maximum number of buffered inbound messages.
+    ///   - trustRootsPEM: PEM trust anchors that replace system roots for this instance only.
     public init(connectTimeout: TimeInterval = 15, incomingBufferCapacity: Int = 1024,
                 trustRootsPEM: Data? = nil)
     {
@@ -30,6 +38,12 @@ public struct NIOKiteWebSocketTransport: KiteWebSocketTransport {
         self.trustRootsPEM = trustRootsPEM
     }
 
+    /// Opens one independent socket with bounded ingress and cancellation-aware teardown.
+    ///
+    /// TLS verifies certificates and hostnames. Closing releases the socket and its event loop.
+    /// - Parameter url: A ws or wss URL without user information or fragment.
+    /// - Returns: An owned connection whose messages preserve arrival order.
+    /// - Throws: Invalid configuration, handshake rejection, transport, TLS, or cancellation errors.
     public func connect(url: URL) async throws -> any KiteWebSocketConnection {
         guard let parts = URLComponents(url: url, resolvingAgainstBaseURL: false),
               let scheme = parts.scheme, ["ws", "wss"].contains(scheme),
