@@ -1,5 +1,6 @@
 # Documentation
 
+- [DocC build](DocC.md): canonical catalog, static artifact, and slice coverage.
 - [Usage](Usage.md): compiled examples and application integration.
 - [Contracts](Contracts.md): validation, compatibility and lifecycle semantics.
 - [Publisher](Publisher.md): application-owned browser integration.
@@ -23,5 +24,6 @@ The pre-commit hook and CI enforce the documentation layout, reject historical
 report paths and execution-output formats, and check local Markdown links.
 Register intentional new guides in `Scripts/check-documentation.py` after checking
 for an existing home for the topic. When moving a guide, update its callers and
-links in the same change. New Swift
-examples belong in Usage.md so the compiled-example drift check covers them.
+links in the same change. New Swift examples belong in the DocC catalog. The compiled-example drift check
+covers DocC articles and native tutorial resources as well as README.md and
+Usage.md during migration.

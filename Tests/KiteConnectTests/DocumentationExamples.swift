@@ -1,4 +1,4 @@
-// Generated from README.md and Documentation/Usage.md; run python3 Scripts/check-documentation-examples.py --write.
+// Generated from Markdown, KiteConnect.docc, and tutorial resources; run python3 Scripts/check-documentation-examples.py --write.
 import Foundation
 import KiteConnect
 
@@ -200,4 +200,11 @@ func streamingControls(ticker: KiteTicker, token: UInt32, accessToken: String, u
 // Backend HTTP handler: your server supplies the raw JSON body and stored secret.
 func validatePostback(body: Data, apiSecret: String) throws -> KitePostback {
   try KitePostbacks.decode(body, apiSecret: apiSecret)
+}
+
+func configuredSandboxClient(accessToken: String) throws -> KiteClient {
+	try KiteClient(
+		apiKey: "sandboxdemo",
+		accessToken: accessToken,
+		configuration: .sandbox)
 }
