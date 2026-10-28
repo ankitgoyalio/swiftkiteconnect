@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check preinstalled Swift 6.4
         id: swift
         shell: bash
@@ -65,7 +65,7 @@ jobs:
         run: |
           echo "Public sandbox SDK smoke: $SANDBOX_OUTCOME (external availability; nonblocking)." >> "$GITHUB_STEP_SUMMARY"
           echo 'No authenticated API or trading qualification is implied. See issue #27.' >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ubuntu-test-results
@@ -81,7 +81,7 @@ jobs:
       IOS_SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-27-0
       IOS_SIMULATOR_NAME: iPhone 17
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Verify native Xcode and Swift toolchain
         shell: bash
         run: |
@@ -110,7 +110,7 @@ jobs:
       - name: iOS Simulator public protocol and real loopback HTTP tests
         timeout-minutes: 25
         run: bash Scripts/test-ios.sh
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: ios-test-results
