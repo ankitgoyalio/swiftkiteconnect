@@ -56,6 +56,8 @@ Placement supports regular, AMO, cover, iceberg, and auction varieties. LIMIT an
 
 Inspect every auto-slice result. Kite can return an array of placed and rejected slices or an object receipt with child results. A receipt acknowledges submission, not exchange acceptance or execution. Malformed or ambiguous mutation receipts produce uncertainty without invented partial results.
 
+A top-level slice array must contain at least one outcome. An empty array produces an uncertain decoding error and requires reconciliation before another mutation. A valid object receipt can have an empty `children` array. See <doc:Trading-mutation-outcomes>.
+
 ## Modify or cancel an inspected order
 
 Fetch current state before choosing the next action. Pass only the desired changes to ``KiteOrderModification``. Omitted fields remain unchanged. The following functions are independent actions, not a sequence to run after every placement.
