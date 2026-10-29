@@ -1,5 +1,62 @@
 # Development
 
+## Find the implementation
+
+For endpoint changes, start with the [REST coverage matrix](../Documentation/Coverage.md).
+Each row links the implementation, public protocol tests, and compiled example.
+For streaming and other non-REST behavior, use the
+[capability matrix](../Documentation/CapabilityCoverage.md).
+
+| Responsibility | Entry points |
+| --- | --- |
+| Client configuration and session ownership | [KiteClient.swift](../Sources/KiteConnect/KiteClient.swift) contains `KiteConfiguration`; [Authentication.swift](../Sources/KiteConnect/Authentication.swift) manages tokens |
+| HTTP requests and response handling | [KiteRequest.swift](../Sources/KiteConnect/KiteRequest.swift) and [HTTP.swift](../Sources/KiteConnect/HTTP.swift) |
+| Streaming lifecycle and recovery | [KiteTicker.swift](../Sources/KiteConnect/KiteTicker.swift) and [KiteTickerRecovery.swift](../Sources/KiteConnect/KiteTickerRecovery.swift) |
+| WebSocket transport | [NIOKiteWebSocketTransport.swift](../Sources/KiteConnect/NIOKiteWebSocketTransport.swift) |
+| Portfolio models and operations | [Portfolio.swift](../Sources/KiteConnect/Portfolio.swift) contains `KitePosition`; [PortfolioOperations.swift](../Sources/KiteConnect/PortfolioOperations.swift) contains mutations |
+| Controlled test services | [LocalHTTPTests.swift](../Tests/KiteConnectTests/LocalHTTPTests.swift) and [TickerTests.swift](../Tests/KiteConnectTests/TickerTests.swift) |
+
+## Run checks
+
+Use Swift 6.4. On macOS, select full Xcode before running tests. Command Line
+Tools alone can fail to load the Swift Testing macro plugin. If needed, set
+`DEVELOPER_DIR` for your installed Xcode, for example in Fish:
+
+```fish
+set -gx DEVELOPER_DIR /Applications/Xcode.app/Contents/Developer
+python3 Scripts/check-development.py
+```
+
+The preflight reports the selected compiler, Xcode, and SwiftFormat. It fails
+before a build if Swift 6.4, full Xcode on macOS, or the pinned formatter is missing.
+Install the formatter as described below before running it.
+
+On macOS, build the test bundle before using the bounded runner:
+
+```fish
+xcrun swift build --build-tests
+python3 Scripts/test-macos.py
+env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 xcrun swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10
+bash Scripts/test-ios.sh
+```
+
+On Ubuntu 24.04, run `bash Scripts/test-ubuntu.sh`. For documentation and hook changes:
+
+```fish
+python3 Scripts/check-documentation.py
+python3 Scripts/audit-snapshot.py
+python3 Scripts/check-documentation-examples.py
+python3 -m unittest discover -s Tests/Hooks -p 'test_*.py'
+python3 -m unittest discover -s Tests/Documentation -p 'test_*.py'
+node --test Tests/Publisher.test.cjs
+```
+
+The [DocC guide](../Documentation/DocC.md) covers warning-free builds and example
+regeneration. The [CI workflow](../.github/workflows/protocol-tests.yml) defines
+required platform checks. Optional remote checks use the
+[sandbox guide](../Documentation/SandboxVerification.md). Keep local logs and
+result bundles in ignored `.test-results/`.
+
 ## Set up commit checks
 
 Install SwiftFormat 0.64.3 and enable the repository's pre-commit hook after
@@ -24,12 +81,20 @@ The hook first checks file sizes, then lints added or modified staged authored
 Swift files using the staged root `.swiftformat`. Renames and type changes to
 regular Swift files are checked too. Generated and vendored files use the same
 staged attribute exemptions as the size check. Commits without authored Swift
-changes do not require SwiftFormat.
+or formatter-policy changes do not require SwiftFormat.
 
 The hook never rewrites files or stages changes, so partial staging is preserved.
 To fix a rejection, run `swiftformat <file> --config .swiftformat`, review the
 diff, and stage the intended hunks again before committing. Stage configuration
-changes along with the source they affect. For a full repository check, run:
+changes along with the source they affect.
+
+CI runs this hook against files changed from the pull request base or previous
+`main` revision, using the same version, staged attributes, and configuration.
+Manual workflow runs compare with the previous commit. Existing formatting debt
+in untouched files remains outside that boundary. To check a branch locally, run
+`python3 .githooks/pre-commit --base origin/main`. Changes to `.swiftformat` or
+`.gitattributes` expand the formatting check to all authored Swift files.
+For a full repository check, run:
 
 ```sh
 swiftformat . --lint --config .swiftformat
@@ -38,7 +103,7 @@ swiftformat . --lint --config .swiftformat
 The configuration uses Swift 6.4, four-space indentation, and SwiftFormat's
 default rules with explicit comma, header, and `self` settings. When upgrading
 SwiftFormat, update the version in `.githooks/check_swift_format.py`,
-`.swiftformat`, these instructions, and the hook test fixture together; review
+`.swiftformat`, the CI installation step, these instructions, and the hook test fixture together; review
 any resulting source changes.
 
 Swift source headers use the file name, `swiftkiteconnect`, and

@@ -16,8 +16,10 @@ Keep consumer guidance, durable contracts, reproducible instructions and selecte
 upstream snapshots in Git. Record implementation history and review discussion on
 the corresponding GitHub issue or PR. Keep ticket breakdowns and publication
 records in GitHub Issues, where their acceptance criteria and dependencies live.
-Keep current qualification status in Verification.md rather than repeating it
-across ticket reports.
+Keep dated qualification evidence in Verification.md, including its source revision.
+Keep pending work and unmerged evidence in the corresponding issue, labelled with
+the execution date and revision or working-tree status. Coverage matrices describe
+contracts and link to those sources instead of repeating mutable results.
 
 Raw test/build logs, per-run summaries, result bundles, screenshots, credentials
 and temporary agent reports belong outside source control. Use ignored

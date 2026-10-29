@@ -55,6 +55,12 @@ def main():
         if not project_markdown(name):
             continue
         text = (git("show", ":" + name).decode() if args.staged else open(name, encoding="utf-8").read())
+        # Retired navigation labels can survive as prose after their files disappear.
+        # Scope this check to maintained coverage matrices, where these labels
+        # historically referred to the removed guides rather than ordinary words.
+        if name in {"Documentation/Coverage.md", "Documentation/CapabilityCoverage.md"}:
+            if re.search(r"\b(?:Usage|Contracts)\b", text):
+                errors.append(f"{name}: retired guide reference; link directly to the canonical DocC article")
         for target in re.findall(r"\]\(([^)]+)\)", text):
             target = target.strip().strip("<>")
             parsed = urlsplit(target)

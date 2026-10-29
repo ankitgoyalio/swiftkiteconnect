@@ -135,6 +135,48 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.stage("Documentation/Snapshots/2026-10-27/inventory.json", b"{}")
         self.check_hook(True)
 
+    def test_retired_prose_navigation_uses_staged_content(self):
+        for name in ("Documentation/Coverage.md", "Documentation/CapabilityCoverage.md"):
+            with self.subTest(name=name):
+                self.stage(name, b"Usage authentication; Usage and Contracts")
+                (self.repo / name).write_text("Canonical task guide")
+                self.assertIn("retired guide reference", self.check_hook(False))
+                self.git("add", name)
+                self.check_hook(True)
+                (self.repo / name).write_text("Usage authentication")
+                result = subprocess.run(["python3", "Scripts/check-documentation.py"],
+                                        cwd=self.repo, env=self.env, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"retired guide reference", result.stderr)
+                (self.repo / name).write_text("Canonical task guide")
+
+    def test_ci_base_checks_committed_changes_even_with_clean_index(self):
+        self.git("commit", "--quiet", "-m", "Baseline")
+        base = self.git("rev-parse", "HEAD").stdout.decode().strip()
+        self.stage("source.swift", b"UNFORMATTED committed source")
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Bypass local hook")
+        result = subprocess.run(["python3", ".githooks/pre-commit", "--base", base],
+                                cwd=self.repo, env=self.env, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"SwiftFormat failed", result.stderr)
+        self.git("rm", "source.swift")
+        self.git("commit", "--quiet", "-m", "Remove source")
+        result = subprocess.run(["python3", ".githooks/pre-commit", "--base", base],
+                                cwd=self.repo, env=self.env, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rule_change_checks_unchanged_swift(self):
+        self.stage("source.swift", b"UNFORMATTED baseline")
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Baseline")
+        self.stage(".swiftformat", (self.repo / ".swiftformat").read_bytes() + b"\n")
+        self.assertIn("SwiftFormat failed", self.check_hook(False))
+
+    def test_rule_change_does_not_expand_size_guard_to_unchanged_files(self):
+        self.stage("source.swift", b"x" * 20_001)
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Baseline")
+        self.stage(".swiftformat", (self.repo / ".swiftformat").read_bytes() + b"\n")
+        self.check_hook(True)
+
     def test_exact_limit_passes_but_one_more_byte_blocks(self):
         self.stage("source.swift", b"x" * 20_000)
         self.check_hook(True)

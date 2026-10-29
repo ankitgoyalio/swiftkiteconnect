@@ -7,7 +7,7 @@ Before adding or moving project documentation, read the
 
 ### Development
 
-Before configuring hooks, committing changes, or changing hook behavior,
+Before building, testing, configuring hooks, or committing changes,
 read the [development guide](docs/development.md).
 
 ### Issue tracker

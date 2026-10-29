@@ -4,8 +4,8 @@ Audited 2026-10-27 against all 17 selected official pages in
 [the manifest](Snapshots/2026-10-27/manifest.json). This is implemented protocol
 scope, **not a qualified 1.0 release**. macOS/iOS controlled tests do not establish
 remote endpoint success or Ubuntu compatibility. [Verification](Verification.md)
-records executed checks, the successful hosted Ubuntu run and #27 remote gaps.
-[Verification](Verification.md) is the current source for platform and sandbox results.
+is the source for dated platform and sandbox evidence. Pending work and unmerged
+remote evidence live in [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27).
 
 The independently extracted [inventory](Snapshots/2026-10-27/inventory.json)
 contains 40 route-table rows and 178 headings. Reading the prose and curl examples
