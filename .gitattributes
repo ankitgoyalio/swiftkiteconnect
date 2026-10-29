@@ -18,3 +18,8 @@ Documentation/Snapshots/** -whitespace
 
 # Authored examples are checked against this generated compilation unit.
 Tests/KiteConnectTests/DocumentationExamples.swift linguist-generated=true
+
+# Exact official SDK fixtures retain upstream formatting and license.
+Tests/KiteConnectTests/Fixtures/OfficialPHP/*.json linguist-vendored=true -whitespace
+Tests/KiteConnectTests/Fixtures/OfficialPHP/manifest.json linguist-vendored=false linguist-generated=true
+Tests/KiteConnectTests/Fixtures/OfficialPHP/LICENSE.md linguist-vendored=true
