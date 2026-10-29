@@ -81,13 +81,14 @@ public extension KiteClient {
     /// - Throws: `KiteError` for invalid input, a changed session, transport failure,
     ///   API rejection, or malformed response. Cancellation throws `CancellationError`
     ///   without installing the response token. A canceled request may have reached Kite.
+    ///   Decoding failures retain the received HTTP status and omit credential values.
     func exchangeRequestToken(_ requestToken: String, apiSecret: String) async throws
         -> KiteSession
     {
         try Self.validateAuthenticationValue(requestToken, field: "requestToken")
         try Self.validateAuthenticationValue(apiSecret, field: "apiSecret")
         let revision = sessionRevision
-        let wire = try await execute(
+        let session = try await execute(
             KiteRequest(
                 method: .post, path: "/session/token",
                 body: .form([
@@ -95,18 +96,25 @@ public extension KiteClient {
                     .init("checksum", KiteChecksum.sha256(apiKey + requestToken + apiSecret)),
                 ]), authenticated: false,
             ), as: SessionWire.self,
-        )
-        guard wire.apiKey == apiKey else {
-            throw KiteError.decoding(statusCode: 200, message: "Session API key does not match client")
-        }
-        let loginTime = KiteTimestamp.parse(wire.loginTime, timeZone: configuration.tradingTimeZone)
-        guard let loginTime else {
-            throw KiteError.decoding(statusCode: 200, message: "Invalid session login_time")
-        }
-        try Self.validateCredential(wire.accessToken, field: "accessToken")
-        let session = KiteSession(
-            profile: wire.profile, apiKey: wire.apiKey, accessToken: wire.accessToken,
-            publicToken: wire.publicToken, refreshToken: wire.refreshToken, loginTime: loginTime,
+            transform: { wire in
+                guard wire.apiKey == apiKey else {
+                    throw DecodingError.dataCorrupted(.init(
+                        codingPath: [], debugDescription: "Session api_key does not match client",
+                    ))
+                }
+                guard let loginTime = KiteTimestamp.parse(
+                    wire.loginTime, timeZone: configuration.tradingTimeZone,
+                ) else {
+                    throw DecodingError.dataCorrupted(.init(
+                        codingPath: [], debugDescription: "Invalid session login_time",
+                    ))
+                }
+                try Self.validateResponseAccessToken(wire.accessToken)
+                return KiteSession(
+                    profile: wire.profile, apiKey: wire.apiKey, accessToken: wire.accessToken,
+                    publicToken: wire.publicToken, refreshToken: wire.refreshToken, loginTime: loginTime,
+                )
+            },
         )
         guard sessionRevision == revision else {
             throw KiteError.validation(
@@ -174,6 +182,7 @@ public extension KiteClient {
     /// - Throws: `KiteError` for invalid input, a changed session, transport failure,
     ///   API rejection, or invalid response. Cancellation throws `CancellationError`
     ///   without installing the response token. Remote processing may still have occurred.
+    ///   Decoding failures retain the received HTTP status and omit credential values.
     func renewSession(refreshToken: String, apiSecret: String) async throws
         -> KiteSessionRenewal
     {
@@ -188,8 +197,11 @@ public extension KiteClient {
                     .init("checksum", KiteChecksum.sha256(apiKey + refreshToken + apiSecret)),
                 ]), authenticated: false,
             ), as: KiteSessionRenewal.self,
+            transform: { session in
+                try Self.validateResponseAccessToken(session.accessToken)
+                return session
+            },
         )
-        try Self.validateCredential(session.accessToken, field: "accessToken")
         guard sessionRevision == revision else {
             throw KiteError.validation(
                 field: "session", message: "Session changed while authentication was in flight",
@@ -260,6 +272,17 @@ public extension KiteClient {
 }
 
 extension KiteClient {
+    private static func validateResponseAccessToken(_ token: String) throws {
+        do {
+            try validateCredential(token, field: "accessToken")
+        } catch {
+            throw DecodingError.dataCorrupted(.init(
+                codingPath: [],
+                debugDescription: "Invalid session access_token: expected a nonempty credential without whitespace, control characters, or colons",
+            ))
+        }
+    }
+
     private static func validateAuthenticationValue(_ value: String, field: String) throws {
         guard !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw KiteError.validation(field: field, message: "Must be nonempty")

@@ -230,6 +230,13 @@ public actor KiteClient {
     public func execute<Value: Decodable & Sendable>(_ request: KiteRequest, as _: Value.Type)
         async throws -> Value
     {
+        try await execute(request, as: Value.self, transform: { $0 })
+    }
+
+    /// Keep endpoint-specific response validation inside the HTTP decoding boundary.
+    func execute<Value: Decodable & Sendable, Result>(
+        _ request: KiteRequest, as _: Value.Type, transform: (Value) throws -> Result,
+    ) async throws -> Result {
         let response = try await response(for: request)
         do {
             let envelope = try KiteTimestamp.decoder(timeZone: configuration.tradingTimeZone).decode(
@@ -240,7 +247,7 @@ public actor KiteClient {
                     statusCode: response.statusCode, message: "Expected success envelope",
                 )
             }
-            return envelope.data
+            return try transform(envelope.data)
         } catch {
             let failure = KiteError.decoding(
                 statusCode: response.statusCode,
