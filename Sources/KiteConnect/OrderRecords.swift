@@ -339,19 +339,9 @@ public indirect enum KiteOrderMetadata: Decodable, Sendable, Equatable {
     /// - Parameter decoder: The decoder positioned at any JSON value.
     /// - Throws: A decoding error if the value cannot be represented by the supported JSON cases.
     public init(from decoder: any Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        if container.decodeNil() {
-            self = .null
-        } else if let value = try? container.decode(Bool.self) {
-            self = .bool(value)
-        } else if let value = try? container.decode(String.self) {
-            self = .string(value)
-        } else if let value = try? container.decode([String: KiteOrderMetadata].self) {
-            self = .object(value)
-        } else if let value = try? container.decode([KiteOrderMetadata].self) {
-            self = .array(value)
-        } else {
-            self = try .number(container.decode(Decimal.self))
-        }
+        self = try decodeArbitraryJSON(
+            from: decoder, null: .null, bool: Self.bool, string: Self.string,
+            number: Self.number, array: Self.array, object: Self.object,
+        )
     }
 }
