@@ -6,6 +6,7 @@
 - [Contracts](Contracts.md): pointer to canonical DocC contracts.
 - [Publisher](Publisher.md): application-owned browser integration.
 - [Coverage](Coverage.md) and [capability coverage](CapabilityCoverage.md): pinned scope.
+- [Official SDK parity](SDKParity.md): pinned wrappers, differences, and independent fixtures.
 - [Verification](Verification.md): current evidence and remaining qualification.
 - [Sandbox verification](SandboxVerification.md): optional external checks.
 - [Snapshot manifest](Snapshots/2026-10-27/manifest.json): exact upstream provenance.

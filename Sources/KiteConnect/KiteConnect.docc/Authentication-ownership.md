@@ -10,6 +10,8 @@ The request token is short lived and can be exchanged once. Publicly distributed
 
 ``KiteClient/exchangeRequestToken(_:apiSecret:)`` lets a Swift backend perform the exchange. The SDK computes the checksum from the exact API key, request token, and secret bytes. It installs the access token only after validating the response's API key, login time, and access token. Applications define the backend protocol and control delivery of credentials to an authorized client.
 
+Malformed exchange and renewal responses throw `KiteError.decoding` with the received HTTP status and field context. Response validation rejects empty access tokens and tokens containing whitespace, control characters, or colons. An API-key mismatch or invalid login time also fails decoding. These failures preserve the installed credentials and do not trigger a retry. Caller-supplied invalid credentials remain local validation failures before dispatch.
+
 ## Credential storage and lifetime
 
 The SDK keeps the installed access token in client memory. It does not persist the secret, session response, or access token. Applications own secure credential storage, logging policy, and logout UI. Tokens and complete session responses are sensitive even when a field is named `publicToken`.
