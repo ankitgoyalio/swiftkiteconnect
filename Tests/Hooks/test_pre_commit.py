@@ -87,16 +87,16 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.check_hook(False)
 
     def test_documentation_links_read_staged_content_and_deletions(self):
-        self.stage("Documentation/Usage.md", b"[Contracts](Contracts.md)\n")
-        self.stage("Documentation/Contracts.md", b"Durable behavior")
+        self.stage("Documentation/README.md", b"[Coverage](Coverage.md)\n")
+        self.stage("Documentation/Coverage.md", b"Durable behavior")
         self.check_hook(True)
-        (self.repo / "Documentation/Usage.md").write_text("[broken](missing.md)")
+        (self.repo / "Documentation/README.md").write_text("[broken](missing.md)")
         self.check_hook(True)
-        self.git("rm", "--cached", "Documentation/Contracts.md")
+        self.git("rm", "--cached", "Documentation/Coverage.md")
         self.assertIn("broken local link", self.check_hook(False))
 
     def test_snapshot_and_maintained_markdown_are_allowed(self):
-        self.stage("Documentation/Usage.md", b"[snapshot](Snapshots/2026-10-27/user.html)")
+        self.stage("Documentation/README.md", b"[snapshot](Snapshots/2026-10-27/user.html)")
         self.stage("Documentation/Snapshots/2026-10-27/user.html", b"upstream bytes")
         self.stage("Documentation/Snapshots/2026-10-27/manifest.json", b"{}")
         self.stage("Documentation/Snapshots/2026-10-27/inventory.json", b"{}")

@@ -9,7 +9,7 @@ import sys
 from urllib.parse import unquote, urlsplit
 
 
-GUIDES = {"README.md", "Usage.md", "Contracts.md", "Coverage.md", "CapabilityCoverage.md",
+GUIDES = {"README.md", "Coverage.md", "CapabilityCoverage.md",
           "Publisher.md", "Verification.md", "SDKParity.md", "SandboxVerification.md",
           "DocC.md", "Pages.md", "DocCCoverage.json", "DocCCoveragePortfolio.json", "DocCCoverageOrders.json"}
 

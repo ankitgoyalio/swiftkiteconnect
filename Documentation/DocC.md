@@ -44,7 +44,7 @@ node --test Tests/Publisher.test.cjs
 ```
 
 The extractor reads every DocC article, tutorial markup, and referenced Swift
-tutorial resource, as well as any README and Usage pointer-page Swift blocks.
+tutorial resource, as well as any README Swift blocks.
 Keep executable snippets in fenced `swift` blocks; do not use an alternate fence
 label to bypass compilation. Fenced Swift examples in triple-slash declaration comments also enter extraction.
 Use triple-slash comments for executable symbol examples.

@@ -22,7 +22,7 @@ Every row is implemented and has controlled public-client protocol tests for
 request routing/encoding and typed response handling. Linked test files include
 negative/compatibility cases; their existence is not remote evidence. All HTTP
 operations share version/authentication, timeout, one-attempt, error and
-cancellation contracts. API behavior and compatibility details are in [Contracts](Contracts.md). Examples below refer to functions in the
+cancellation contracts. API behavior and compatibility details are in [request and response contracts](../Sources/KiteConnect/KiteConnect.docc/Request-and-response-contracts.md). Examples below refer to functions in the
 [compiled catalog examples](../Tests/KiteConnectTests/DocumentationExamples.swift), not to executed trading calls.
 
 | Official snapshot | Method and route | Implementation / public API | Public protocol tests | Compiled usage function |
