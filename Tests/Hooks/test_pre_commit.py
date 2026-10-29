@@ -37,12 +37,13 @@ class StagedCommitChecksTests(unittest.TestCase):
         formatter = self.bin / "swiftformat"
         formatter.write_text(
             "#!/usr/bin/env python3\n"
-            "import json, pathlib, sys\n"
+            "import json, os, pathlib, sys\n"
             "if '--version' in sys.argv:\n"
             "    print('0.64.3')\n"
             "else:\n"
             "    data = sys.stdin.buffer.read()\n"
             "    pathlib.Path('formatter-input').write_bytes(data)\n"
+            "    pathlib.Path('formatter-environment').write_text(json.dumps({k: os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR')}))\n"
             "    config = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).read_bytes()\n"
             "    pathlib.Path('formatter-config').write_bytes(config)\n"
             "    pathlib.Path('formatter-args').write_text(json.dumps(sys.argv))\n"
@@ -296,6 +297,17 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.check_hook(True)
         self.stage("source.swift", b"let value = 1\n")
         self.assertIn("SwiftFormat 0.64.3 is required", self.check_hook(False))
+
+    def test_formatter_discovers_header_metadata_without_hook_git_locators(self):
+        self.env["GIT_DIR"] = str(self.repo / ".git")
+        self.env["GIT_WORK_TREE"] = str(self.repo)
+        self.env["GIT_COMMON_DIR"] = str(self.repo / ".git")
+        self.stage("source.swift", b"let value = 1\n")
+        self.check_hook(True)
+        observed = json.loads((self.repo / "formatter-environment").read_text())
+        self.assertEqual(observed, {"GIT_DIR": None, "GIT_WORK_TREE": None, "GIT_COMMON_DIR": None})
+        # The parent Git calls still need their original repository environment.
+        self.assertEqual(self.env["GIT_DIR"], str(self.repo / ".git"))
 
     def test_wrong_formatter_version_blocks(self):
         formatter = self.bin / "swiftformat"

@@ -34,6 +34,12 @@ def check_swift_format(files):
         print("Commit blocked: stage the root .swiftformat configuration first.", file=sys.stderr)
         return 1
 
+    # Git exports these in hooks. SwiftFormat runs Git from each source folder
+    # to resolve header metadata; inherited repository locators defeat that
+    # discovery in worktrees and can replace creation dates with today's date.
+    formatter_env = os.environ.copy()
+    for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"):
+        formatter_env.pop(name, None)
     failed = False
     with tempfile.TemporaryDirectory(prefix="swiftkiteconnect-format-") as directory:
         config_path = os.path.join(directory, ".swiftformat")
@@ -46,7 +52,7 @@ def check_swift_format(files):
             result = subprocess.run(
                 ["swiftformat", "stdin", "--lint", "--config", config_path,
                  "--stdin-path", os.fsdecode(path), "--cache", "ignore"],
-                input=content, capture_output=True,
+                input=content, capture_output=True, env=formatter_env,
             )
             if result.returncode:
                 failed = True

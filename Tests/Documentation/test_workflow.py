@@ -69,6 +69,7 @@ class PublicationWorkflow(unittest.TestCase):
         pin = (ROOT / '.githooks/check_swift_format.py').read_text().split('SWIFTFORMAT_VERSION = "')[1].split('"')[0]
         self.assertIn(f'/download/{pin}/swiftformat.zip', install['run'])
         self.assertIn('python3 Scripts/check-development.py', enforce['run'])
+        self.assertIn('swiftformat . --lint --config .swiftformat', enforce['run'])
         self.assertIn('python3 .githooks/pre-commit --base "$base"', enforce['run'])
         self.assertIn('github.event.pull_request.base.sha', enforce['env']['CHECK_BASE'])
         self.assertIn('github.event.before', enforce['env']['CHECK_BASE'])

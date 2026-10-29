@@ -101,6 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 Scripts/check-development.py
+          swiftformat . --lint --config .swiftformat
           base="${CHECK_BASE:-HEAD^}"
           python3 .githooks/pre-commit --base "$base"
       - name: Verify native Xcode and Swift toolchain

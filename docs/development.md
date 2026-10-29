@@ -90,8 +90,9 @@ changes along with the source they affect.
 
 CI runs this hook against files changed from the pull request base or previous
 `main` revision, using the same version, staged attributes, and configuration.
-Manual workflow runs compare with the previous commit. Existing formatting debt
-in untouched files remains outside that boundary. To check a branch locally, run
+Manual workflow runs compare with the previous commit. CI also lints the full
+repository. Generated documentation examples are excluded from formatting because
+they must match the authored DocC snippets exactly. To check a branch locally, run
 `python3 .githooks/pre-commit --base origin/main`. Changes to `.swiftformat` or
 `.gitattributes` expand the formatting check to all authored Swift files.
 For a full repository check, run:
@@ -101,7 +102,10 @@ swiftformat . --lint --config .swiftformat
 ```
 
 The configuration uses Swift 6.4, four-space indentation, and SwiftFormat's
-default rules with explicit comma, header, and `self` settings. When upgrading
+default rules with explicit comma, header, and `self` settings. Test names and
+existing force-unwrap/force-try assertions are preserved: renaming breaks the
+coverage map, and automatic assertion conversion can produce nested Swift Testing
+macros that do not compile. When upgrading
 SwiftFormat, update the version in `.githooks/check_swift_format.py`,
 `.swiftformat`, the CI installation step, these instructions, and the hook test fixture together; review
 any resulting source changes.
