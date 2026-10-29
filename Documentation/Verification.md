@@ -5,6 +5,11 @@ No 1.0 qualification, production testing or release publication is claimed.
 [Coverage](Coverage.md) and [CapabilityCoverage](CapabilityCoverage.md) describe
 implemented scope; [Contracts](Contracts.md) describes behavior.
 
+The [SDK parity reference](SDKParity.md) separates static wrapper coverage from
+controlled compatibility. Its retained official response fixtures run through public
+Swift APIs offline; their provenance and byte hashes are checked with the
+documentation suite. They add no authenticated remote qualification.
+
 ## Automated platform checks
 
 Hosted Apple (macOS and iOS Simulator) and Ubuntu checks passed on the pre-cleanup

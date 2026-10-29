@@ -1,0 +1,152 @@
+{
+  "repository": "https://github.com/zerodha/phpkiteconnect",
+  "revision": "34107a327473c0ce0fac2bdad121afa2ee05f76b",
+  "inspectedDate": "2026-10-28",
+  "fixtures": [
+    {
+      "file": "profile.json",
+      "upstreamPath": "tests/mock_responses/profile.json",
+      "sha256": "efc823181463a6ffd219ea425512accacbf50580995d71976f2d7bfdbf187255"
+    },
+    {
+      "file": "margins.json",
+      "upstreamPath": "tests/mock_responses/margins.json",
+      "sha256": "ddbcc2577696579a1a57ca01645e8e0dfdc45cdb3c0050587ab6358510af1176"
+    },
+    {
+      "file": "margins_equity.json",
+      "upstreamPath": "tests/mock_responses/margins_equity.json",
+      "sha256": "f263bb82e2667701b5a16c6d332751a60ab740f17f92f52d00a66bd0ac8a162f"
+    },
+    {
+      "file": "margin_commodity.json",
+      "upstreamPath": "tests/mock_responses/margin_commodity.json",
+      "sha256": "412694d249ccd47132574fbd177d42cc71afad28b2b732c1b0a353768af354f2"
+    },
+    {
+      "file": "orders.json",
+      "upstreamPath": "tests/mock_responses/orders.json",
+      "sha256": "02546c006973150c1e82c1048fa53118a3835ccb9d1721951864033ee3f0fea9"
+    },
+    {
+      "file": "order_info.json",
+      "upstreamPath": "tests/mock_responses/order_info.json",
+      "sha256": "bc538ffe9b276618150715daa89e883a4ea974ae4b231a2eab66e9bc60cf247d"
+    },
+    {
+      "file": "trades.json",
+      "upstreamPath": "tests/mock_responses/trades.json",
+      "sha256": "99bc914001dfab10cac0e85d07c5bbe61b247c6f60eb6869ed83e0ef5a5476dd"
+    },
+    {
+      "file": "order_trades.json",
+      "upstreamPath": "tests/mock_responses/order_trades.json",
+      "sha256": "37a2b61af4e84b431ea9c7d8dbecb6025c1caf75e8fd53ff915d47ced7dafbad"
+    },
+    {
+      "file": "gtt_get_order.json",
+      "upstreamPath": "tests/mock_responses/gtt_get_order.json",
+      "sha256": "0ccc3ad7f2be39ec0e8ea7200d32045e2a64e58bc5a459eccc1f70ea88810c4b"
+    },
+    {
+      "file": "gtt_get_orders.json",
+      "upstreamPath": "tests/mock_responses/gtt_get_orders.json",
+      "sha256": "69a57560b24a899af3eaa2035999685d868dd46acd3fdf0a9433c8c63e5be3e0"
+    },
+    {
+      "file": "holdings.json",
+      "upstreamPath": "tests/mock_responses/holdings.json",
+      "sha256": "ae40f727d5cc72e2006f0f0cbfa777b0c52b8cfadf3d53284aad7f36180bad6f"
+    },
+    {
+      "file": "positions.json",
+      "upstreamPath": "tests/mock_responses/positions.json",
+      "sha256": "c78f584417a684a1c3e8014df037f252bba2980b08e809afa5128df1c5e222a0"
+    },
+    {
+      "file": "auctions_list.json",
+      "upstreamPath": "tests/mock_responses/auctions_list.json",
+      "sha256": "91806b77661bc7ecea4cbd6b6ae2fb153dc48d067935d93252d9b1c9426eca9b"
+    },
+    {
+      "file": "mf_orders.json",
+      "upstreamPath": "tests/mock_responses/mf_orders.json",
+      "sha256": "13c9fa62328a717bf3c0ec0cdaebac73a94808e7010cc815398919da132ee422"
+    },
+    {
+      "file": "mf_orders_info.json",
+      "upstreamPath": "tests/mock_responses/mf_orders_info.json",
+      "sha256": "0d1ca49638b602d113dc50f3d5d2e3a7e993cf060e83f93c209d484b48d4d688"
+    },
+    {
+      "file": "mf_sips.json",
+      "upstreamPath": "tests/mock_responses/mf_sips.json",
+      "sha256": "c7d81ef77defaf7632c63c850507b21d2789809f79341e4a6193bc1e7e969afc"
+    },
+    {
+      "file": "mf_holdings.json",
+      "upstreamPath": "tests/mock_responses/mf_holdings.json",
+      "sha256": "69c21c0eac42314a11a4d89ababa4a502efba57d654d01a4cb1dd87468e06024"
+    },
+    {
+      "file": "quote.json",
+      "upstreamPath": "tests/mock_responses/quote.json",
+      "sha256": "30a1abe1021a9ecebb450c32ac04c6e0da85859e313d8b6d1acaa2a57e9daf1c"
+    },
+    {
+      "file": "ohlc.json",
+      "upstreamPath": "tests/mock_responses/ohlc.json",
+      "sha256": "fc4147084343c97dded6507ef98b09b90246c8c5fd3e040457e1d30d21ce2fcc"
+    },
+    {
+      "file": "ltp.json",
+      "upstreamPath": "tests/mock_responses/ltp.json",
+      "sha256": "ae46f12a791d613ab8de4be078e9bb0c0477ac3ec9039c4996fd302b8575a0ea"
+    },
+    {
+      "file": "historical_minute.json",
+      "upstreamPath": "tests/mock_responses/historical_minute.json",
+      "sha256": "9b77922d43350ca9abf87094f6f631a5ac3f8b103e61fc07283a76d6135a4ed6"
+    },
+    {
+      "file": "historical_oi.json",
+      "upstreamPath": "tests/mock_responses/historical_oi.json",
+      "sha256": "be77a6914b3a881d166f890ae5ca15512e1fc8d1b7efa3e60b5d5380b805feaa"
+    },
+    {
+      "file": "order_margins.json",
+      "upstreamPath": "tests/mock_responses/order_margins.json",
+      "sha256": "e21cf4a63c98d6dfb68e721b5f8b1a58925f9576ed14a3dd794d23f9f8c61896"
+    },
+    {
+      "file": "basket_margins.json",
+      "upstreamPath": "tests/mock_responses/basket_margins.json",
+      "sha256": "5b758b48e03dc45643182ac4ed0d720bd22607f5ccc30f976118f34bf076d982"
+    },
+    {
+      "file": "virtual_contract_note.json",
+      "upstreamPath": "tests/mock_responses/virtual_contract_note.json",
+      "sha256": "c43f9cc4f52e91b6b9dcb3b5452d111c1795241c3e44be590d82445c8d0a5fbd"
+    },
+    {
+      "file": "alerts_get.json",
+      "upstreamPath": "tests/mock_responses/alerts_get.json",
+      "sha256": "2aeb7a366ee8604f92b4b5da11ca6ce32d48794a31825f8b693ccbdbd034383c"
+    },
+    {
+      "file": "alerts_get_one.json",
+      "upstreamPath": "tests/mock_responses/alerts_get_one.json",
+      "sha256": "3b939ccde1d972e7f17a2ad01ad36003bca359093eeb43a0a9ccb8b02649d22b"
+    },
+    {
+      "file": "alerts_history.json",
+      "upstreamPath": "tests/mock_responses/alerts_history.json",
+      "sha256": "968bdb90fb5fd9cd70e98812545fd73ed17bacc4032dafd9e4627f008dc31833"
+    },
+    {
+      "file": "autoslice_response.json",
+      "upstreamPath": "tests/mock_responses/autoslice_response.json",
+      "sha256": "9174263c01a02ad82fe6d1a6d207ec3699b623834df89a30824ed23cd92fae23"
+    }
+  ]
+}
