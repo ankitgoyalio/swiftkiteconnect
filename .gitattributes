@@ -23,3 +23,7 @@ Tests/KiteConnectTests/DocumentationExamples.swift linguist-generated=true
 Tests/KiteConnectTests/Fixtures/OfficialPHP/*.json linguist-vendored=true -whitespace
 Tests/KiteConnectTests/Fixtures/OfficialPHP/manifest.json linguist-vendored=false linguist-generated=true
 Tests/KiteConnectTests/Fixtures/OfficialPHP/LICENSE.md linguist-vendored=true
+
+# Generated brand artwork is maintained as binary image assets.
+assets/branding/swiftkiteconnect-social-preview.png linguist-generated=true
+assets/branding/swiftkiteconnect-mascot-transparent.png linguist-generated=true
