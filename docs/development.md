@@ -90,8 +90,9 @@ Keep qualification results in `Documentation/Verification.md` rather than repeat
 status pages. Never commit credentials, session files or agent execution reports.
 
 The hook runs `Scripts/check-documentation.py --staged` before other checks.
-It rejects historical report paths and non-document formats outside the pinned
-snapshot layout, even when forced into the index or marked generated. It checks
-local links using staged paths/content, so deletions and partial staging are
-handled together. CI runs the same policy against tracked working-tree files.
+It rejects unregistered project guides at the root, under `docs/`, and under
+`Documentation/`, while allowing numbered ADRs and pinned snapshots. It rejects
+historical report paths and execution artifacts even when forced into the index
+or marked generated. It checks local links using staged paths/content, so
+deletions and partial staging are handled together. CI runs the same policy against tracked working-tree files.
 Run `python3 Scripts/check-documentation.py` before submitting documentation changes.

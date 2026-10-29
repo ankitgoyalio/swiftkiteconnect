@@ -3,7 +3,7 @@
 This unofficial package is partial 0.x against the pinned 2026-10-27 snapshot.
 No 1.0 qualification, production testing or release publication is claimed.
 [Coverage](Coverage.md) and [CapabilityCoverage](CapabilityCoverage.md) describe
-implemented scope; [Contracts](Contracts.md) describes behavior.
+implemented scope; the [request and response contracts](../Sources/KiteConnect/KiteConnect.docc/Request-and-response-contracts.md) describe behavior.
 
 The [SDK parity reference](SDKParity.md) separates static wrapper coverage from
 controlled compatibility. Its retained official response fixtures run through public

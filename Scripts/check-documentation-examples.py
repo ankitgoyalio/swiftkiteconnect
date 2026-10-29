@@ -6,7 +6,7 @@ import sys
 
 root = pathlib.Path(__file__).resolve().parent.parent
 catalog = root / 'Sources/KiteConnect/KiteConnect.docc'
-documents = [root / 'README.md', root / 'Documentation/Usage.md']
+documents = [root / 'README.md']
 documents += sorted(catalog.rglob('*.md')) + sorted(catalog.rglob('*.tutorial'))
 blocks = []
 resources = set()

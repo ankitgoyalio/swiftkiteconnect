@@ -12,12 +12,11 @@ class Examples(unittest.TestCase):
     def test_docc_and_native_tutorial_code_compile_from_authored_sources(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for folder in ('Scripts', 'Documentation', 'Tests/KiteConnectTests',
+            for folder in ('Scripts', 'Tests/KiteConnectTests',
                            'Sources/KiteConnect/KiteConnect.docc/Resources'):
                 (root / folder).mkdir(parents=True)
             shutil.copy(ROOT / 'Scripts/check-documentation-examples.py', root / 'Scripts')
             (root / 'README.md').write_text('')
-            (root / 'Documentation/Usage.md').write_text('')
             catalog = root / 'Sources/KiteConnect/KiteConnect.docc'
             (root / 'Sources/KiteConnect/Helper.swift').write_text(
                 '/// ```swift\n/// func symbolExample() {}\n/// ```\npublic struct Helper {}\n')

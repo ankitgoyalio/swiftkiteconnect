@@ -9,9 +9,19 @@ import sys
 from urllib.parse import unquote, urlsplit
 
 
-GUIDES = {"README.md", "Usage.md", "Contracts.md", "Coverage.md", "CapabilityCoverage.md",
+GUIDES = {"README.md", "Coverage.md", "CapabilityCoverage.md",
           "Publisher.md", "Verification.md", "SDKParity.md", "SandboxVerification.md",
           "DocC.md", "Pages.md", "DocCCoverage.json", "DocCCoveragePortfolio.json", "DocCCoverageOrders.json"}
+ROOT_GUIDES = {"README.md", "AGENTS.md", "GLOSSARY.md"}
+PROJECT_GUIDES = {"development.md", "sdk-spec.md", "sdk-spec-user-stories.md",
+                  "agents/domain.md", "agents/issue-tracker.md", "agents/triage-labels.md"}
+
+
+def project_markdown(name):
+    path = PurePosixPath(name)
+    return path.suffix == ".md" and (
+        len(path.parts) == 1 or name.startswith(("Documentation/", "docs/")) or ".docc/" in name
+    )
 
 
 def git(*args):
@@ -26,6 +36,13 @@ def main():
     errors = []
     for name in sorted(paths):
         path = PurePosixPath(name)
+        if len(path.parts) == 1 and path.suffix == ".md" and name not in ROOT_GUIDES:
+            errors.append(f"{name}: unregistered project guide; update an existing guide or register a durable topic in ROOT_GUIDES")
+        if name.startswith("docs/"):
+            relative = str(path.relative_to("docs"))
+            adr = re.fullmatch(r"adr/\d{4}-[a-z0-9]+(?:-[a-z0-9]+)*\.md", relative)
+            if relative not in PROJECT_GUIDES and not adr:
+                errors.append(f"{name}: execution/history artifact or unregistered project guide; keep plans and publication records in GitHub Issues; register durable topics in PROJECT_GUIDES")
         if not name.startswith("Documentation/"):
             continue
         relative = str(path.relative_to("Documentation"))
@@ -35,7 +52,7 @@ def main():
             errors.append(f"{name}: execution/history artifact or unregistered guide; use .test-results/, CI artifacts or the GitHub issue/PR; register intentional new guides in GUIDES")
     # Static Markdown links only; remote URLs and fragment-only links are not fetched.
     for name in sorted(paths):
-        if not (name.endswith(".md") and (name.startswith("Documentation/") or name == "README.md" or ".docc/" in name)):
+        if not project_markdown(name):
             continue
         text = (git("show", ":" + name).decode() if args.staged else open(name, encoding="utf-8").read())
         for target in re.findall(r"\]\(([^)]+)\)", text):

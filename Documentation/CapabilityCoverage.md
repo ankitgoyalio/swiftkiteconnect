@@ -50,6 +50,6 @@ endpoints or remote-qualified features.
 
 No missing typed snapshot route was found in the audit. Controlled tests cover
 physical WebSocket teardown admission, write/close completion fencing and invalid
-GTT receipt uncertainty. See [Contracts](Contracts.md) for durable behavior and
+GTT receipt uncertainty. See [request and response contracts](../Sources/KiteConnect/KiteConnect.docc/Request-and-response-contracts.md) for durable behavior and
 [Verification](Verification.md) for executed checks and remaining qualification.
 The package remains partial 0.x; #24 and parent #3 remain open.
