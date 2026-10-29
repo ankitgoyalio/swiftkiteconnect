@@ -100,6 +100,43 @@ This is a manual release gate until minimum OS environments are provisioned.
 The current newer-runtime CI remains required. Its success does not satisfy this
 gate, and no minimum OS execution is claimed by these instructions.
 
+## Review dependency updates
+
+[Dependabot configuration](../.github/dependabot.yml) checks SwiftPM packages and
+GitHub Actions each Monday at 08:00 Asia/Kolkata. Routine version updates have
+two open Swift PR slots and one Actions slot. Dependabot security updates, if
+enabled separately in repository settings, have a separate limit.
+
+Networking patch and minor updates are grouped across SwiftNIO, NIOSSL and
+WebSocketKit. Swift Crypto updates and all major upgrades remain individual PRs.
+Actions patch and minor updates form a separate group. The configuration takes
+effect after it reaches the default branch.
+
+Review each update before merging:
+
+1. Read the upstream release notes and inspect `Package.swift` and
+   `Package.resolved`, or the changed workflow references for Actions updates.
+   Preserve existing `exact:` requirements when updating their versions.
+2. For major upgrades, include migration notes and describe any changes to
+   compiler requirements, minimum OS versions or public behavior.
+3. Require successful `apple` and `ubuntu` checks against the current base.
+   Merge manually. The repository ruleset requires both checks and auto-merge
+   is disabled.
+4. Before release publication, complete the
+   [minimum OS qualification](#qualify-minimum-apple-os-versions-before-release)
+   for the candidate dependency set.
+
+Keep SwiftFormat and Swift/Xcode upgrades in dedicated maintenance PRs. Update
+their pins, validation scripts, CI setup and documentation together. Dependabot's
+Actions updater changes action references, not the compiler version or formatter
+download embedded in workflow commands.
+
+For a failed update job, inspect **Insights > Dependency graph > Dependabot** on
+GitHub. Check the job log for manifest, resolver or toolchain errors, fix the
+cause, and retry the update. Do not weaken CI or deployment targets to accept an
+update. The [Dependabot options reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference)
+describes scheduling, groups and PR limits.
+
 ## Set up commit checks
 
 Install SwiftFormat 0.64.3 and enable the repository's pre-commit hook after
