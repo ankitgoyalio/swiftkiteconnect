@@ -95,6 +95,39 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.git("rm", "--cached", "Documentation/Coverage.md")
         self.assertIn("broken local link", self.check_hook(False))
 
+    def test_unregistered_project_docs_are_blocked_even_when_exempt(self):
+        self.stage(".gitattributes", b"*.md linguist-generated=true\n")
+        for name in ("docs/sdk-design.md", "docs/sdk-ticket-plan.md",
+                     "docs/Run-2026-10-29.md", "docs/Evidence/run.txt",
+                     "docs/new-guide.md", "Plan.md", "Documentation/Usage.md",
+                     "Documentation/Contracts.md"):
+            with self.subTest(name=name):
+                self.stage(name, b"redundant documentation")
+                self.assertIn("unregistered", self.check_hook(False))
+                self.git("rm", "--cached", "--", name)
+
+    def test_project_docs_and_numbered_adrs_are_allowed_and_links_checked(self):
+        self.stage("AGENTS.md", b"[Development](docs/development.md)\n")
+        self.stage("docs/development.md", b"[Decision](adr/0014-durable-docs.md)\n")
+        self.stage("docs/adr/0014-durable-docs.md", b"A durable design decision")
+        self.check_hook(True)
+        (self.repo / "docs/development.md").write_text("[broken](missing.md)")
+        self.check_hook(True)
+        working = subprocess.run(
+            ["python3", "Scripts/check-documentation.py"],
+            cwd=self.repo, env=self.env, capture_output=True,
+        )
+        self.assertNotEqual(working.returncode, 0)
+        self.assertIn(b"broken local link", working.stderr)
+        self.git("add", "docs/development.md")
+        self.assertIn("broken local link", self.check_hook(False))
+        self.stage("docs/development.md", b"[Decision](adr/0014-durable-docs.md)\n")
+        self.git("rm", "--cached", "docs/adr/0014-durable-docs.md")
+        self.assertIn("broken local link", self.check_hook(False))
+        self.stage("docs/adr/0014-durable-docs.md", b"A durable design decision")
+        self.stage("AGENTS.md", b"[broken](missing.md)\n")
+        self.assertIn("broken local link", self.check_hook(False))
+
     def test_snapshot_and_maintained_markdown_are_allowed(self):
         self.stage("Documentation/README.md", b"[snapshot](Snapshots/2026-10-27/user.html)")
         self.stage("Documentation/Snapshots/2026-10-27/user.html", b"upstream bytes")
@@ -112,7 +145,7 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.assertIn("Stage the revised original", error)
 
     def test_counts_bytes_instead_of_unicode_characters(self):
-        self.stage("unicode.md", ("é" * 10_001).encode())
+        self.stage("README.md", ("é" * 10_001).encode())
         self.assertIn("20,002 bytes", self.check_hook(False))
 
     def test_large_unstaged_content_does_not_block_small_staged_blob(self):
@@ -160,11 +193,11 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.check_hook(False)
 
     def test_unchanged_large_files_and_deletions_are_ignored(self):
-        self.stage("large.md", b"x" * 25_000)
+        self.stage("README.md", b"x" * 25_000)
         self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Baseline")
-        self.stage("small.md", b"small")
+        self.stage("GLOSSARY.md", b"small")
         self.check_hook(True)
-        self.git("rm", "large.md")
+        self.git("rm", "README.md")
         self.check_hook(True)
 
     def test_symlinks_are_ignored(self):
@@ -216,7 +249,7 @@ class StagedCommitChecksTests(unittest.TestCase):
         # Simulate an unavailable tool without falling through to a system install.
         (self.bin / "swiftformat").write_text("#!/bin/sh\nexit 127\n")
         (self.bin / "swiftformat").chmod(0o755)
-        self.stage("notes.md", b"notes")
+        self.stage("README.md", b"notes")
         self.stage("API.generated.swift", b"UNFORMATTED")
         self.check_hook(True)
         self.stage("source.swift", b"let value = 1\n")

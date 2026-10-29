@@ -28,7 +28,12 @@ inventory make the coverage audit reproducible without a live website.
 The pre-commit hook and CI enforce the documentation layout, reject historical
 report paths and execution-output formats, and check local Markdown links.
 Register intentional new guides in `Scripts/check-documentation.py` after checking
-for an existing home for the topic. When moving a guide, update its callers and
-links in the same change. New Swift examples belong in the DocC catalog.
+for an existing home for the topic. A new guide must support a recurring user or
+agent task and add information that existing guides do not cover. Extend the
+canonical guide and link directly to it when the topic already has a home.
+Keep design interview summaries and published ticket plans in the GitHub issue.
+The check covers root Markdown files, `docs/`, and `Documentation/`; numbered
+ADRs can be added under `docs/adr/` without an allowlist entry.
+When moving a guide, update its callers and links in the same change. New Swift examples belong in the DocC catalog.
 The compiled-example drift check covers every catalog article and native tutorial
 resource. The README contains no separate canonical examples.

@@ -1,5 +1,10 @@
 ## Agent skills
 
+### Documentation
+
+Before adding or moving project documentation, read the
+[documentation policy](Documentation/README.md).
+
 ### Development
 
 Before configuring hooks, committing changes, or changing hook behavior,
