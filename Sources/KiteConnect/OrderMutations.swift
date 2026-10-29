@@ -2,7 +2,7 @@
 //  OrderMutations.swift
 //  swiftkiteconnect
 //
-//  Created by Ankit Goyal on 28/10/2026.
+//  Created by Ankit Goyal on 27/10/2026.
 
 import Foundation
 
@@ -134,16 +134,21 @@ public struct KiteOrderMutationReceipt: Decodable, Sendable, Equatable {
 public enum KiteOrderPlacementResult: Decodable, Sendable, Equatable {
     /// An object acknowledgement with an order ID and optional child slice outcomes.
     case order(KiteOrderMutationReceipt)
-    /// An auto-slice acknowledgement array; inspect every placed and rejected result.
+    /// A nonempty auto-slice acknowledgement array; inspect every placed and rejected result.
     case slices([KiteOrderSliceResult])
     /// Decodes either a slice-result array or an object receipt without inventing partial results.
     ///
     /// - Parameter decoder: The decoder positioned at the response value, outside any Kite envelope.
-    /// - Throws: A decoding error when neither the complete slice array nor a valid
+    /// - Throws: A decoding error when neither a complete, nonempty slice array nor a valid
     ///   object receipt decodes. No partial acknowledgement is returned.
     public init(from decoder: any Decoder) throws {
         let container = try decoder.singleValueContainer()
         if let slices = try? container.decode([KiteOrderSliceResult].self) {
+            guard !slices.isEmpty else {
+                throw DecodingError.dataCorruptedError(
+                    in: container, debugDescription: "Empty auto-slice acknowledgement",
+                )
+            }
             self = .slices(slices)
         } else {
             self = try .order(container.decode(KiteOrderMutationReceipt.self))
