@@ -72,3 +72,6 @@ cancellation contracts. API behavior and compatibility details are in [Contracts
 
 See the [prose, streaming and scope-boundary audit](CapabilityCoverage.md) for
 non-REST capabilities and qualification limits.
+
+The [official SDK parity reference](SDKParity.md) separates documented wrappers,
+SDK-only callable methods, provisional refresh operations, and independent fixtures.

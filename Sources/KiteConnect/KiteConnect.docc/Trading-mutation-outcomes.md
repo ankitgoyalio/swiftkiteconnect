@@ -16,6 +16,8 @@ Each REST operation attempts once. The SDK does not automatically retry reads or
 
 `CancellationError` remains recognizable. Cancelling a Swift task stops local waiting and transport work. Cancellation after dispatch does not establish that Kite rejected or reversed the request. Cancelling a task and calling the order cancellation endpoint are different operations.
 
+An empty top-level auto-slice acknowledgement array produces an uncertain decoding error, even in a successful HTTP response. It provides neither an order ID nor a slice rejection. The SDK sends no replacement request and invents no outcome. Reconcile before another mutation. A valid parent receipt with an order ID remains supported when its optional `children` array is empty.
+
 ## Application-owned reconciliation
 
 Before another mutation, reconcile the observed state with the application's saved intent. For orders, inspect order history, trades, portfolio state, and order updates as appropriate. For GTT, inspect stored triggers and embedded submission results. For alerts, inspect alert state and history. Empty order history does not prove nonacceptance, and an application tag is not an idempotency key.
