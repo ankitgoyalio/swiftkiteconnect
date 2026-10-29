@@ -322,3 +322,29 @@ func historicalPreservesAPIFailuresWithoutRetry(status: Int) async throws {
         Issue.record("Timestamp must consume the full string")
     } catch KiteError.decoding {}
 }
+
+@Test func historicalConcurrentTimestampParsingKeepsZonesAndMatchesIsolated() async throws {
+    let offsetless = historicalRow.replacingOccurrences(of: "+0530", with: "")
+    let fractional = historicalRow.replacingOccurrences(
+        of: "2017-12-15T09:15:00+0530", with: "2017-12-15T03:45:00.125Z",
+    )
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for index in 0 ..< 64 {
+            group.addTask {
+                let india = index.isMultiple(of: 2)
+                let (client, _) = try historicalClient(
+                    "[\(offsetless),\(fractional),\(historicalRow)]", zone: india ? "Asia/Kolkata" : "UTC",
+                )
+                let candles = try await client.historicalCandles(
+                    instrumentToken: 5633, interval: .minute, from: historicalFrom, to: historicalTo,
+                )
+                #expect(candles.map(\.timestamp) == [
+                    Date(timeIntervalSince1970: india ? 1_513_309_500 : 1_513_329_300),
+                    Date(timeIntervalSince1970: 1_513_309_500.125),
+                    Date(timeIntervalSince1970: 1_513_309_500),
+                ])
+            }
+        }
+        try await group.waitForAll()
+    }
+}

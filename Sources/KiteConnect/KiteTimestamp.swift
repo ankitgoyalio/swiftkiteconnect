@@ -9,6 +9,13 @@ import Foundation
 /// Shared timestamp policy for REST models, including future historical and order models.
 /// Explicit offsets determine an instant; otherwise the configured trading zone applies.
 enum KiteTimestamp {
+    /// Compile once; matches and calendar state remain local to each parse.
+    private static let regex: NSRegularExpression? = {
+        let pattern =
+            #"^([0-9]{4})-([0-9]{2})-([0-9]{2})[ T]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(Z|[+-][0-9]{2}:?[0-9]{2})?$"#
+        return try? NSRegularExpression(pattern: pattern)
+    }()
+
     static func decoder(timeZone: TimeZone) -> JSONDecoder {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
@@ -27,9 +34,7 @@ enum KiteTimestamp {
     /// Accept second-resolution space/ISO timestamps, optional fractional seconds (1–9 digits),
     /// and Z or ±HH:mm / ±HHmm offsets. Never consult the machine's current timezone.
     static func parse(_ value: String, timeZone: TimeZone) -> Date? {
-        let pattern =
-            #"^([0-9]{4})-([0-9]{2})-([0-9]{2})[ T]([0-9]{2}):([0-9]{2}):([0-9]{2})(?:\.([0-9]{1,9}))?(Z|[+-][0-9]{2}:?[0-9]{2})?$"#
-        guard let regex = try? NSRegularExpression(pattern: pattern),
+        guard let regex,
               let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)),
               match.range.length == value.utf16.count
         else { return nil }
