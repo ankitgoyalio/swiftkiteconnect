@@ -8,9 +8,11 @@
 --header "//\n//  {file}\n//  swiftkiteconnect\n//\n//  Created by {author.name} on {created}."
 --date-format dmy
 --timezone utc
---exclude .build,.scratch,Packages,Vendor,vendor,**/Generated/**,**/generated/**,**/*.generated.swift,**/*.g.swift
+--exclude Tests/KiteConnectTests/DocumentationExamples.swift,.build,.scratch,Packages,Vendor,vendor,**/Generated/**,**/generated/**,**/*.generated.swift,**/*.g.swift
 --blank-line-after-switch-case "always"
 --line-between-guards "true"
 --boolean-guards-in-tests "convert"
 --guard-like-if-statements "convert"
 --property-types "inferred"
+--test-case-name-format preserve
+--disable noForceTryInTests,noForceUnwrapInTests

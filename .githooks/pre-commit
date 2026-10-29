@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Check staged authored file sizes and Swift formatting without changing files."""
 
+import argparse
 import os
 import subprocess
 import sys
@@ -16,12 +17,30 @@ def git(*args, data=None):
     ).stdout
 
 
+def authored_files(files):
+    attributes = git(
+        "check-attr", "--cached", "-z", "--stdin",
+        "linguist-generated", "linguist-vendored",
+        data=b"".join(path + b"\0" for path, _ in files),
+    ).split(b"\0")
+    exempt = set()
+    for offset in range(0, len(attributes) - 1, 3):
+        path, _, value = attributes[offset:offset + 3]
+        if value in (b"set", b"true"):
+            exempt.add(path)
+    return [(path, oid) for path, oid in files if path not in exempt]
+
+
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--base", help="Check committed changes from this revision to HEAD (CI)")
+    args = parser.parse_args()
     subprocess.run([sys.executable, "Scripts/check-documentation.py", "--staged"], check=True)
     # Raw, NUL-delimited records give the staged mode and object ID without
     # reading working-tree content or interpreting unusual filenames.
+    comparison = (args.base, "HEAD") if args.base else ("--cached",)
     records = git(
-        "diff", "--cached", "--raw", "--no-abbrev", "--no-renames",
+        "diff", *comparison, "--raw", "--no-abbrev", "--no-renames",
         "--diff-filter=ACMRT", "-z", "--",
     ).split(b"\0")
     files = []
@@ -33,17 +52,7 @@ def main():
     if not files:
         return 0
 
-    attributes = git(
-        "check-attr", "--cached", "-z", "--stdin",
-        "linguist-generated", "linguist-vendored",
-        data=b"".join(path + b"\0" for path, _ in files),
-    ).split(b"\0")
-    exempt = set()
-    for offset in range(0, len(attributes) - 1, 3):
-        path, _, value = attributes[offset:offset + 3]
-        if value in (b"set", b"true"):
-            exempt.add(path)
-    authored = [(path, oid) for path, oid in files if path not in exempt]
+    authored = authored_files(files)
     if not authored:
         return 0
 
@@ -62,6 +71,18 @@ def main():
         if size > MAX_BYTES:
             oversized.append((path, size))
     if not oversized:
+        if {path for path, _ in files} & {b".swiftformat", b".gitattributes"}:
+            # Rule changes affect all authored Swift, but size checks stay limited
+            # to changed files, preserving the staged-file size contract.
+            swift_files = []
+            for record in git("ls-files", "--stage", "-z").split(b"\0"):
+                if not record:
+                    continue
+                metadata, path = record.split(b"\t", 1)
+                mode, object_id, _ = metadata.split()
+                if mode in (b"100644", b"100755") and path.endswith(b".swift"):
+                    swift_files.append((path, object_id))
+            authored = authored_files(swift_files) if swift_files else []
         return check_swift_format(authored)
 
     print(

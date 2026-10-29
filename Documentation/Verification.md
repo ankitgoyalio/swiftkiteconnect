@@ -14,7 +14,7 @@ documentation suite. They add no authenticated remote qualification.
 
 Hosted Apple (macOS and iOS Simulator) and Ubuntu checks passed on the pre-cleanup
 source `4ffb6e4`; [PR #28 checks](https://github.com/ankitgoyalio/swiftkiteconnect/pull/28/checks)
-are authoritative for the current revision. Local full suites at that revision
+record that historical branch. Local full suites at that revision
 had 278 passed and two optional sandbox tests skipped on each Apple target,
 with zero iOS runtime warnings. Test counts are historical observations, not a
 fixed acceptance threshold. Inspect the current runner summary and CI artifacts.
@@ -30,27 +30,13 @@ No OS trust store is changed; fixture private keys are disposable public materia
 Default URLSession local HTTPS success with a private CA is not separately asserted.
 
 The snapshot audit verifies 17 exact upstream pages, 40 route-table entries plus
-two prose routes, and all 42 API/test/example mappings. Nine Swift examples compile
-with the tests; Publisher examples are checked offline.
+two prose routes, and all 42 API/test/example mappings. Catalog examples compile
+with the tests; `Scripts/check-documentation-examples.py` reports their current count.
+Publisher examples are checked offline.
 
-Reproduce on macOS with full Xcode and Swift 6.4 selected (Fish-compatible):
-
-```fish
-env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift build --build-tests
-env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer python3 Scripts/test-macos.py
-env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swift test --skip-build --maximum-repetitions 10
-env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer bash Scripts/test-ios.sh
-python3 Scripts/check-documentation.py
-python3 Scripts/audit-snapshot.py
-python3 Scripts/check-documentation-examples.py
-node --test Tests/Publisher.test.cjs
-python3 -m unittest discover -s Tests/Hooks -p 'test_*.py'
-```
-
-On Ubuntu 24.04 with Swift 6.4, Python and Node, run `bash Scripts/test-ubuntu.sh`.
-CI bounds macOS execution and retains process samples on hangs. CI uploads logs
-and result bundles as artifacts; local output belongs in ignored `.test-results/`.
-Historical raw logs, per-ticket reports and xcresult summaries are not source files.
+Reproduce checks with the [development guide](../docs/development.md#run-checks).
+CI retains logs, result bundles, and process samples on hangs. These artifacts
+identify the tested revision; historical counts above are not current thresholds.
 
 ## Executed sandbox checks
 
@@ -77,27 +63,44 @@ recorded in [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27#iss
 Private session material stays outside the repository; future runs use
 [SandboxVerification](SandboxVerification.md).
 
+## Reproducible follow-up scenarios
+
+The runner now includes SDK token exchange, renewal and logout, remote recovery
+in each tick mode, distinct-session replacement, observed LIMIT lifecycles, and
+eligible position conversion and exit. [SandboxVerification](SandboxVerification.md)
+provides the opt-in commands and private attempt-file requirements. Offline tests
+check that attempt files prevent repeat placements and that diagnostics omit
+private values.
+
+The execution evidence dated 2026-10-29 in
+[#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) came from uncommitted
+runner extensions based on `24593af` in the triage worktree. This revision preserves
+those scenarios with formatting and safety checks. It does not claim another
+remote run or new provider qualification. The 2026-10-28 results above remain the
+dated baseline for the original runner.
+
+Keep pending work and remote evidence in #27, labelled with the source revision
+or working-tree status and execution date. Do not copy its pending checklist into
+coverage matrices.
+
 ## Remaining qualification
 
-Documentation publication requires the dedicated DNS record, account-level domain
-verification, a GitHub Pages HTTPS certificate, and a successful deployment from
-`main`. Repository automation and offline DocC validation do not establish a live
-custom domain. Follow [Pages setup and verification](Pages.md) before claiming
-hosted documentation success.
+Minimum macOS 15 and iOS 18 runtime qualification has not been executed. Follow
+the [minimum OS release gate](../docs/development.md#qualify-minimum-apple-os-versions-before-release)
+before publication. The newer Apple CI runtimes do not satisfy that gate.
 
-[#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) remains open for
-SDK session exchange/logout and approved renewal, simulated LIMIT lifecycle and
-reconciliation, eligible position conversion, alerts/MF availability, browser
-holdings authorisation/Publisher, delivered postbacks, streaming order events and
-controlled remote recovery/credential replacement. A passed day-history request
-does not qualify every interval, option or populated-data shape.
+The package remains partial 0.x. #27 tracks pending remote qualification.
+Read its current body before planning a remote run. A passed day-history request does not qualify every interval,
+option, or populated-data shape.
 
 GTT, order/basket margin and charge calculations, and API MARKET placement are
 documented sandbox exclusions and remain remotely unverified. There is no
 production fallback. Local deterministic tests do not substitute for broker evidence.
 
-Final qualification [#24](https://github.com/ankitgoyalio/swiftkiteconnect/issues/24)
-and parent [#3](https://github.com/ankitgoyalio/swiftkiteconnect/issues/3) remain open.
-Workflow authorization #29 is resolved; review/merge and release publication are
-separate decisions. Implementation/review history belongs to issues and PRs rather
-than duplicated status documents in the source tree.
+[Publication #40](https://github.com/ankitgoyalio/swiftkiteconnect/issues/40) and
+[local completeness #24](https://github.com/ankitgoyalio/swiftkiteconnect/issues/24)
+are closed as of 2026-10-29. Their closure is not 1.0 qualification. Publication
+evidence belongs to #40; use the [Pages guide](Pages.md) to verify or maintain the
+site. For current automated checks, inspect the workflow run for the revision
+being assessed rather than the old PR #28 check page. Parent
+[#3](https://github.com/ankitgoyalio/swiftkiteconnect/issues/3) tracks overall completion.

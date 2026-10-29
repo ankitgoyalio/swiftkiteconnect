@@ -37,12 +37,18 @@ class StagedCommitChecksTests(unittest.TestCase):
         formatter = self.bin / "swiftformat"
         formatter.write_text(
             "#!/usr/bin/env python3\n"
-            "import json, pathlib, sys\n"
+            "import json, os, pathlib, sys\n"
             "if '--version' in sys.argv:\n"
             "    print('0.64.3')\n"
             "else:\n"
-            "    data = sys.stdin.buffer.read()\n"
+            "    root = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).parent\n"
+            "    paths = [pathlib.Path(p) for p in sys.argv[1:sys.argv.index('--lint')]]\n"
+            "    files = {str(p.relative_to(root)): p.read_bytes().decode() for p in paths}\n"
+            "    data = b''.join(p.read_bytes() for p in paths)\n"
+            "    pathlib.Path('formatter-files').write_text(json.dumps(files))\n"
+            "    with pathlib.Path('formatter-calls').open('a') as log: log.write('lint\\n')\n"
             "    pathlib.Path('formatter-input').write_bytes(data)\n"
+            "    pathlib.Path('formatter-environment').write_text(json.dumps({k: os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR')}))\n"
             "    config = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).read_bytes()\n"
             "    pathlib.Path('formatter-config').write_bytes(config)\n"
             "    pathlib.Path('formatter-args').write_text(json.dumps(sys.argv))\n"
@@ -133,6 +139,48 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.stage("Documentation/Snapshots/2026-10-27/user.html", b"upstream bytes")
         self.stage("Documentation/Snapshots/2026-10-27/manifest.json", b"{}")
         self.stage("Documentation/Snapshots/2026-10-27/inventory.json", b"{}")
+        self.check_hook(True)
+
+    def test_retired_prose_navigation_uses_staged_content(self):
+        for name in ("Documentation/Coverage.md", "Documentation/CapabilityCoverage.md"):
+            with self.subTest(name=name):
+                self.stage(name, b"Usage authentication; Usage and Contracts")
+                (self.repo / name).write_text("Canonical task guide")
+                self.assertIn("retired guide reference", self.check_hook(False))
+                self.git("add", name)
+                self.check_hook(True)
+                (self.repo / name).write_text("Usage authentication")
+                result = subprocess.run(["python3", "Scripts/check-documentation.py"],
+                                        cwd=self.repo, env=self.env, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(b"retired guide reference", result.stderr)
+                (self.repo / name).write_text("Canonical task guide")
+
+    def test_ci_base_checks_committed_changes_even_with_clean_index(self):
+        self.git("commit", "--quiet", "-m", "Baseline")
+        base = self.git("rev-parse", "HEAD").stdout.decode().strip()
+        self.stage("source.swift", b"UNFORMATTED committed source")
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Bypass local hook")
+        result = subprocess.run(["python3", ".githooks/pre-commit", "--base", base],
+                                cwd=self.repo, env=self.env, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(b"SwiftFormat failed", result.stderr)
+        self.git("rm", "source.swift")
+        self.git("commit", "--quiet", "-m", "Remove source")
+        result = subprocess.run(["python3", ".githooks/pre-commit", "--base", base],
+                                cwd=self.repo, env=self.env, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_rule_change_checks_unchanged_swift(self):
+        self.stage("source.swift", b"UNFORMATTED baseline")
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Baseline")
+        self.stage(".swiftformat", (self.repo / ".swiftformat").read_bytes() + b"\n")
+        self.assertIn("SwiftFormat failed", self.check_hook(False))
+
+    def test_rule_change_does_not_expand_size_guard_to_unchanged_files(self):
+        self.stage("source.swift", b"x" * 20_001)
+        self.git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Baseline")
+        self.stage(".swiftformat", (self.repo / ".swiftformat").read_bytes() + b"\n")
         self.check_hook(True)
 
     def test_exact_limit_passes_but_one_more_byte_blocks(self):
@@ -227,9 +275,26 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.assertEqual((self.repo / "formatter-input").read_bytes(), b"let value = 1\n")
         self.assertEqual((self.repo / "formatter-config").read_bytes(), config)
         args = json.loads((self.repo / "formatter-args").read_text())
-        self.assertEqual(args[args.index("--stdin-path") + 1], name)
+        self.assertEqual(json.loads((self.repo / "formatter-files").read_text()), {name: "let value = 1\n"})
+        self.assertIn("--lint", args)
         self.assertEqual(self.git("write-tree").stdout, before)
         self.assertEqual((self.repo / name).read_bytes(), b"UNFORMATTED working copy")
+
+    def test_formatter_batches_staged_blobs_in_one_invocation(self):
+        names = ["one.swift", "folder/雪.swift", ".hidden.swift", ".folder/two.swift",
+                 "space ' quote\nfile.swift"]
+        for name in names:
+            self.stage(name, b"let value = 1\n")
+            (self.repo / name).write_bytes(b"UNFORMATTED working copy")
+        before = self.git("write-tree").stdout
+        self.check_hook(True)
+        self.assertEqual((self.repo / "formatter-calls").read_text(), "lint\n")
+        self.assertEqual(json.loads((self.repo / "formatter-files").read_text()),
+                         {name: "let value = 1\n" for name in names})
+        self.assertEqual(self.git("write-tree").stdout, before)
+        # A failure anywhere in the batch still blocks the hook.
+        self.stage(".hidden.swift", b"UNFORMATTED staged blob")
+        self.assertIn("SwiftFormat failed", self.check_hook(False))
 
     def test_unformatted_staged_swift_blocks_actual_commit(self):
         self.stage("source.swift", b"UNFORMATTED staged blob")
@@ -254,6 +319,17 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.check_hook(True)
         self.stage("source.swift", b"let value = 1\n")
         self.assertIn("SwiftFormat 0.64.3 is required", self.check_hook(False))
+
+    def test_formatter_discovers_header_metadata_without_hook_git_locators(self):
+        self.env["GIT_DIR"] = str(self.repo / ".git")
+        self.env["GIT_WORK_TREE"] = str(self.repo)
+        self.env["GIT_COMMON_DIR"] = str(self.repo / ".git")
+        self.stage("source.swift", b"let value = 1\n")
+        self.check_hook(True)
+        observed = json.loads((self.repo / "formatter-environment").read_text())
+        self.assertEqual(observed, {"GIT_DIR": None, "GIT_WORK_TREE": None, "GIT_COMMON_DIR": None})
+        # The parent Git calls still need their original repository environment.
+        self.assertEqual(self.env["GIT_DIR"], str(self.repo / ".git"))
 
     def test_wrong_formatter_version_blocks(self):
         formatter = self.bin / "swiftformat"

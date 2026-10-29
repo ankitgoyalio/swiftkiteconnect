@@ -82,6 +82,28 @@ jobs:
       IOS_SIMULATOR_NAME: iPhone 17
     steps:
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Install pinned SwiftFormat
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/swiftformat"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/nicklockwood/SwiftFormat/releases/download/0.64.3/swiftformat.zip \
+            -o "$RUNNER_TEMP/swiftformat.zip"
+          unzip -q "$RUNNER_TEMP/swiftformat.zip" -d "$RUNNER_TEMP/swiftformat"
+          echo "$RUNNER_TEMP/swiftformat" >> "$GITHUB_PATH"
+      - name: Enforce authored changes with commit checks
+        shell: bash
+        env:
+          CHECK_BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          set -euo pipefail
+          python3 Scripts/check-development.py
+          swiftformat . --lint --config .swiftformat
+          base="${CHECK_BASE:-HEAD^}"
+          python3 .githooks/pre-commit --base "$base"
       - name: Verify native Xcode and Swift toolchain
         shell: bash
         run: |

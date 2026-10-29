@@ -56,3 +56,23 @@ class PublicationWorkflow(unittest.TestCase):
                      if step.get('with', {}).get('name') == 'docc-site']
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0]['with']['path'], '.build/documentation/docc-validation.tar')
+
+    def test_pinned_formatter_and_base_check_block_apple_job(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        apple = json.loads(result.stdout)['jobs']['apple']['steps']
+        install = next(step for step in apple if step.get('name') == 'Install pinned SwiftFormat')
+        enforce = next(step for step in apple if step.get('name') == 'Enforce authored changes with commit checks')
+        pin = (ROOT / '.githooks/check_swift_format.py').read_text().split('SWIFTFORMAT_VERSION = "')[1].split('"')[0]
+        self.assertIn(f'/download/{pin}/swiftformat.zip', install['run'])
+        self.assertIn('python3 Scripts/check-development.py', enforce['run'])
+        self.assertIn('swiftformat . --lint --config .swiftformat', enforce['run'])
+        self.assertIn('python3 .githooks/pre-commit --base "$base"', enforce['run'])
+        self.assertIn('github.event.pull_request.base.sha', enforce['env']['CHECK_BASE'])
+        self.assertIn('github.event.before', enforce['env']['CHECK_BASE'])
+        self.assertFalse(enforce.get('continue-on-error', False))
+        self.assertNotIn('if', enforce)
+        self.assertEqual(apple[0]['with']['fetch-depth'], 0)
