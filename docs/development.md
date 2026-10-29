@@ -57,6 +57,49 @@ required platform checks. Optional remote checks use the
 [sandbox guide](../Documentation/SandboxVerification.md). Keep local logs and
 result bundles in ignored `.test-results/`.
 
+## Qualify minimum Apple OS versions before release
+
+The package declares macOS 15 and iOS 18. The routine Apple CI job tests newer
+runtimes. A successful build with those deployment targets does not establish
+runtime compatibility. Before publishing a release, run the same candidate
+revision on both minimum OS versions and retain the results with that revision.
+
+1. Prepare a macOS 15 machine or VM and an iOS 18 simulator. Record the exact OS
+   patch versions, architecture, Xcode version and Swift version. Use Swift 6.4
+   and a full Xcode installation that supports the selected runtime. Check
+   [Apple's Xcode compatibility table](https://developer.apple.com/xcode/system-requirements)
+   before selecting the environment. Xcode 27.1 requires macOS 26.6 or later,
+   so the routine CI Xcode installation cannot run on the macOS 15 host.
+2. On the macOS 15 host, run the macOS build, bounded suite and constrained-executor
+   commands in [Run checks](#run-checks). A standalone Swift 6.4 toolchain requires
+   a compatible SDK and working Swift Testing macros. Verify the compiler and
+   execute the suite before accepting that setup. If no compatible setup is
+   available, record minimum macOS qualification as blocked. Do not substitute
+   results from a newer host or silently lower the package's tools version.
+3. On a host with Swift 6.4 and an installed iOS 18 runtime, select that runtime
+   explicitly and run the existing iOS test runner. For example, in Fish:
+
+   ```fish
+   env IOS_SIMULATOR_RUNTIME=com.apple.CoreSimulator.SimRuntime.iOS-18-0 IOS_SIMULATOR_NAME="iPhone 16" bash Scripts/test-ios.sh
+   ```
+
+   Replace the identifiers with the installed iOS 18 runtime and device. The
+   runner must fail if that runtime is unavailable. Do not use automatic selection
+   for minimum OS qualification, because it can select a newer runtime.
+4. Retain the full test summaries, simulator result bundle, compiler and OS
+   inventory, and candidate commit SHA in release CI artifacts or ignored
+   `.test-results/`. All deterministic tests must pass, including real loopback
+   HTTP and WebSocket tests. Record optional remote sandbox skips separately.
+5. Add dated evidence and artifact links to
+   [Verification](../Documentation/Verification.md). A missing runtime, unavailable
+   compatible compiler, test failure or hang blocks minimum OS qualification and
+   release publication. Repeat this procedure for each release candidate and
+   after changes to networking, concurrency, dependencies or deployment targets.
+
+This is a manual release gate until minimum OS environments are provisioned.
+The current newer-runtime CI remains required. Its success does not satisfy this
+gate, and no minimum OS execution is claimed by these instructions.
+
 ## Set up commit checks
 
 Install SwiftFormat 0.64.3 and enable the repository's pre-commit hook after
@@ -83,6 +126,8 @@ regular Swift files are checked too. Generated and vendored files use the same
 staged attribute exemptions as the size check. Commits without authored Swift
 or formatter-policy changes do not require SwiftFormat.
 
+The hook reads staged Swift blobs in one batch and lints a temporary snapshot in
+bounded SwiftFormat batches. Git history remains available for header metadata.
 The hook never rewrites files or stages changes, so partial staging is preserved.
 To fix a rejection, run `swiftformat <file> --config .swiftformat`, review the
 diff, and stage the intended hunks again before committing. Stage configuration
@@ -163,5 +208,8 @@ It rejects unregistered project guides at the root, under `docs/`, and under
 `Documentation/`, while allowing numbered ADRs and pinned snapshots. It rejects
 historical report paths and execution artifacts even when forced into the index
 or marked generated. It checks local links using staged paths/content, so
-deletions and partial staging are handled together. CI runs the same policy against tracked working-tree files.
+deletions and partial staging are handled together. Ordinary Markdown section
+anchors are checked too, including duplicate headings and explicit HTML IDs.
+DocC symbol anchors are validated by the DocC build. CI runs the same policy
+against tracked working-tree files.
 Run `python3 Scripts/check-documentation.py` before submitting documentation changes.

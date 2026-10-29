@@ -1,6 +1,8 @@
 """Lint staged Swift blobs with the staged repository configuration."""
 
+import io
 import os
+from pathlib import Path
 import subprocess
 import sys
 import tempfile
@@ -40,24 +42,71 @@ def check_swift_format(files):
     formatter_env = os.environ.copy()
     for name in ("GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR"):
         formatter_env.pop(name, None)
-    failed = False
     with tempfile.TemporaryDirectory(prefix="swiftkiteconnect-format-") as directory:
         config_path = os.path.join(directory, ".swiftformat")
         with open(config_path, "wb") as output:
             output.write(config.stdout)
-        for path, object_id in swift_files:
-            content = subprocess.run(
-                ["git", "cat-file", "blob", object_id], capture_output=True, check=True,
-            ).stdout
+        # Materialize only the staged blobs, preserving arbitrary filenames.
+        objects = subprocess.run(
+            ["git", "cat-file", "--batch"],
+            input=b"".join(oid + b"\n" for _, oid in swift_files),
+            capture_output=True, check=True,
+        )
+        blobs = io.BytesIO(objects.stdout)
+        for path, _ in swift_files:
+            _, kind, size = blobs.readline().rstrip(b"\n").split()
+            if kind != b"blob":
+                raise ValueError("Expected a staged blob")
+            content = blobs.read(int(size))
+            if len(content) != int(size) or blobs.read(1) != b"\n":
+                raise ValueError("Incomplete staged blob")
+            target = Path(directory) / os.fsdecode(path)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(content)
+
+        # Give the snapshot the original history and identity for fileHeader.
+        # This private Git directory shares read-only objects/refs, but has its
+        # own HEAD and working-tree root; no index or working files are shared.
+        common = subprocess.run(
+            ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
+            capture_output=True, check=True,
+        ).stdout.rstrip(b"\n")
+        head = subprocess.run(
+            ["git", "rev-parse", "--verify", "HEAD"], capture_output=True,
+        )
+        metadata = Path(directory) / ".git"
+        metadata.mkdir()
+        (metadata / "commondir").write_bytes(common + b"\n")
+        (metadata / "HEAD").write_bytes(
+            head.stdout if head.returncode == 0 else b"ref: refs/heads/format-unborn\n"
+        )
+        # Explicit paths include hidden Swift files, unlike directory traversal.
+        # Bound each argv well below platform limits; newline-delimited filelists
+        # cannot represent every valid Git filename.
+        batches = [[]]
+        batch_bytes = 0
+        for path, _ in swift_files:
+            target = os.path.join(directory, os.fsdecode(path))
+            size = len(os.fsencode(target)) + 1
+            if batch_bytes + size > 48_000 and batches[-1]:
+                batches.append([])
+                batch_bytes = 0
+            batches[-1].append(target)
+            batch_bytes += size
+        failed = False
+        for batch in batches:
             result = subprocess.run(
-                ["swiftformat", "stdin", "--lint", "--config", config_path,
-                 "--stdin-path", os.fsdecode(path), "--cache", "ignore"],
-                input=content, capture_output=True, env=formatter_env,
+                ["swiftformat", *batch, "--lint", "--config", config_path,
+                 "--cache", "ignore"],
+                capture_output=True, env=formatter_env,
             )
             if result.returncode:
                 failed = True
-                print(f"SwiftFormat failed for staged {os.fsdecode(path)!r}:", file=sys.stderr)
-                sys.stderr.buffer.write(result.stderr)
+                print("SwiftFormat failed for staged Swift files:", file=sys.stderr)
+                # Report repository-relative paths instead of disposable locations.
+                sys.stderr.buffer.write(
+                    result.stderr.replace(os.fsencode(directory) + b"/", b"")
+                )
     if failed:
         print(
             "Commit blocked: run swiftformat <file> --config .swiftformat, review "

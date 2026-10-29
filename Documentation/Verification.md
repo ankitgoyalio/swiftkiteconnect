@@ -63,22 +63,31 @@ recorded in [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27#iss
 Private session material stays outside the repository; future runs use
 [SandboxVerification](SandboxVerification.md).
 
-## Evidence reported after the committed runner
+## Reproducible follow-up scenarios
 
-As of 2026-10-29, [#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27)
-records SDK token exchange and logout, remote recovery in each tick mode,
-simulated LIMIT placement/modification/cancellation, position conversion and exit,
-and holdings-authorisation initiation. That report explicitly identifies its
-runner extensions as uncommitted and unmerged. The first-pass runner in this
-revision does not reproduce all those scenarios. The 2026-10-28 results above
-remain the dated baseline for the committed runner, not a list of current blockers.
+The runner now includes SDK token exchange, renewal and logout, remote recovery
+in each tick mode, distinct-session replacement, observed LIMIT lifecycles, and
+eligible position conversion and exit. [SandboxVerification](SandboxVerification.md)
+provides the opt-in commands and private attempt-file requirements. Offline tests
+check that attempt files prevent repeat placements and that diagnostics omit
+private values.
 
-Keep pending work and evidence from unmerged changes in #27, labelled with the
-source revision or working-tree status and execution date. When the runner changes
-merge, update this record with the reproducible commands and evidence revision.
-Do not copy their pending checklist into coverage matrices.
+The execution evidence dated 2026-10-29 in
+[#27](https://github.com/ankitgoyalio/swiftkiteconnect/issues/27) came from uncommitted
+runner extensions based on `24593af` in the triage worktree. This revision preserves
+those scenarios with formatting and safety checks. It does not claim another
+remote run or new provider qualification. The 2026-10-28 results above remain the
+dated baseline for the original runner.
+
+Keep pending work and remote evidence in #27, labelled with the source revision
+or working-tree status and execution date. Do not copy its pending checklist into
+coverage matrices.
 
 ## Remaining qualification
+
+Minimum macOS 15 and iOS 18 runtime qualification has not been executed. Follow
+the [minimum OS release gate](../docs/development.md#qualify-minimum-apple-os-versions-before-release)
+before publication. The newer Apple CI runtimes do not satisfy that gate.
 
 The package remains partial 0.x. #27 tracks pending remote qualification.
 Read its current body before planning a remote run. A passed day-history request does not qualify every interval,

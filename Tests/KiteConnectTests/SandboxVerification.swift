@@ -61,7 +61,7 @@ func `authenticated sandbox verification`() async throws {
             }
         }
         if environment["KITE_SANDBOX_ORDER_CHECK"] == "1" {
-            await sandboxOrderCheck(client: client, snapshot: snapshot, report: report)
+            _ = await sandboxOrderCheck(client: client, snapshot: snapshot, report: report)
         } else {
             report.record("LIMIT lifecycle", "NOT RUN: explicit order opt-in absent")
         }
@@ -74,7 +74,7 @@ func `authenticated sandbox verification`() async throws {
     #expect(report.failures == 0, "Inspect .test-results/sandbox-verification.json; unavailable endpoints remain unqualified.")
 }
 
-private struct SandboxSessionInput: Decodable, Sendable {
+struct SandboxSessionInput: Decodable, Sendable {
     let accessToken: String
     let userID: String
     enum CodingKeys: String, CodingKey {
@@ -83,10 +83,10 @@ private struct SandboxSessionInput: Decodable, Sendable {
     }
 }
 
-private enum SandboxVerificationFailure: Error { case emptyResponse, tickTimeout, unexpectedReceipt }
+enum SandboxVerificationFailure: Error { case emptyResponse, tickTimeout, unexpectedReceipt }
 
 /// Never serialize raw responses, URLs, credentials, order IDs or server error messages.
-private final class SandboxVerificationReport {
+final class SandboxVerificationReport {
     var results: [String: String] = [:]
     var failures = 0
     func record(_ name: String, _ result: String) {
@@ -104,14 +104,14 @@ private final class SandboxVerificationReport {
         }
     }
 
-    func save() {
+    func save(filename: String = "sandbox-verification.json") {
         let directory = URL(fileURLWithPath: ".test-results", isDirectory: true)
         do {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             let payload: [String: Any] = ["date": ISO8601DateFormatter().string(from: Date()),
                                           "environment": "sandbox", "results": results]
             let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
-            try data.write(to: directory.appendingPathComponent("sandbox-verification.json"), options: .atomic)
+            try data.write(to: directory.appendingPathComponent(filename), options: .atomic)
         } catch {
             Issue.record("Could not save sanitized sandbox report")
         }
@@ -124,7 +124,9 @@ private final class SandboxVerificationReport {
         case KiteError.transport: "FAIL: transport"
         case KiteError.validation: "FAIL: validation"
         case KiteError.uncertainOutcome: "UNCERTAIN: reconcile before further mutations"
-        case SandboxVerificationFailure.tickTimeout: "FAIL: no matching tick within 30 seconds"
+        case KiteTickerError.malformedText: "FAIL: malformed WebSocket text"
+        case let KiteTickerError.handshakeRejected(status): "FAIL: WebSocket handshake HTTP \(status)"
+        case SandboxVerificationFailure.tickTimeout: "FAIL: no matching tick before disconnect"
         case SandboxVerificationFailure.emptyResponse: "FAIL: expected data missing"
         default: "FAIL: operation (details withheld)"
         }
@@ -161,32 +163,56 @@ private func sandboxReceiveTick(session: SandboxSessionInput, token: UInt32, mod
     }
 }
 
-private func sandboxOrderCheck(client: KiteClient, snapshot: KiteLTPSnapshot, report: SandboxVerificationReport) async {
+func sandboxOrderCheck(client: KiteClient, snapshot: KiteLTPSnapshot, report: SandboxVerificationReport) async -> String? {
     // One placement only. No retries or replacement order if the outcome is uncertain.
     var orderID: String?
     await report.check("LIMIT placement") {
+        let environment = ProcessInfo.processInfo.environment
+        guard let sessionPath = environment["KITE_SANDBOX_OBSERVED_ORDER_FILE"]
+            ?? environment["KITE_SANDBOX_SCENARIOS_FILE"] ?? environment["KITE_SANDBOX_SESSION_FILE"]
+        else {
+            throw SandboxVerificationFailure.unexpectedReceipt
+        }
+        // A permanent attempt marker prevents rerunning a placement after transport
+        // loss, process interruption, or a missing acknowledgement. Reconcile first.
+        let ledger = URL(fileURLWithPath: environment["KITE_SANDBOX_ORDER_LEDGER"] ?? sessionPath + ".order-attempt")
+        let tag = "sdk27" + UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(12)
+        let attempt = try SandboxOrderAttempt(url: ledger, tag: tag)
         var order = KiteOrderPlacement(tradingSymbol: "HDFCBANK", exchange: .nse,
                                        transactionType: .buy, orderType: .limit, quantity: 1, product: .mis)
         var price = snapshot.lastPrice * Decimal(string: "0.98")!
         var rounded = Decimal()
         NSDecimalRound(&rounded, &price, 1, .down)
         order.price = rounded
-        order.tag = "sdkverify27"
+        order.tag = tag
         guard case let .order(receipt) = try await client.placeOrder(order) else {
             throw SandboxVerificationFailure.unexpectedReceipt
         }
+        try attempt.acknowledge(orderID: receipt.orderID)
         orderID = receipt.orderID
     }
-    guard let orderID else { return }
+    guard let orderID else { return nil }
     await report.check("order history") { _ = try await client.orderHistory(orderID: orderID) }
     await report.check("order trades") { _ = try await client.orderTrades(orderID: orderID) }
+    var uncertainModification = false
     await report.check("modify OPEN order") {
         guard try await client.orderHistory(orderID: orderID).last?.status == .open else {
             throw SandboxVerificationFailure.emptyResponse
         }
         var changes = KiteOrderModification()
         changes.quantity = 1
-        _ = try await client.modifyOrder(orderID: orderID, changes: changes)
+        do {
+            _ = try await client.modifyOrder(orderID: orderID, changes: changes)
+        } catch {
+            if case KiteError.uncertainOutcome = error {
+                uncertainModification = true
+            }
+            throw error
+        }
+    }
+    if uncertainModification {
+        report.record("cancel OPEN order", "NOT RUN: reconcile uncertain modification first")
+        return orderID
     }
     await report.check("cancel OPEN order") {
         guard try await client.orderHistory(orderID: orderID).last?.status == .open else {
@@ -194,5 +220,10 @@ private func sandboxOrderCheck(client: KiteClient, snapshot: KiteLTPSnapshot, re
         }
         _ = try await client.cancelOrder(orderID: orderID)
     }
-    await report.check("final order history") { _ = try await client.orderHistory(orderID: orderID) }
+    await report.check("final order history") {
+        guard try await client.orderHistory(orderID: orderID).last?.status == .cancelled else {
+            throw SandboxVerificationFailure.unexpectedReceipt
+        }
+    }
+    return orderID
 }

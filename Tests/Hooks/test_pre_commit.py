@@ -41,7 +41,12 @@ class StagedCommitChecksTests(unittest.TestCase):
             "if '--version' in sys.argv:\n"
             "    print('0.64.3')\n"
             "else:\n"
-            "    data = sys.stdin.buffer.read()\n"
+            "    root = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).parent\n"
+            "    paths = [pathlib.Path(p) for p in sys.argv[1:sys.argv.index('--lint')]]\n"
+            "    files = {str(p.relative_to(root)): p.read_bytes().decode() for p in paths}\n"
+            "    data = b''.join(p.read_bytes() for p in paths)\n"
+            "    pathlib.Path('formatter-files').write_text(json.dumps(files))\n"
+            "    with pathlib.Path('formatter-calls').open('a') as log: log.write('lint\\n')\n"
             "    pathlib.Path('formatter-input').write_bytes(data)\n"
             "    pathlib.Path('formatter-environment').write_text(json.dumps({k: os.environ.get(k) for k in ('GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR')}))\n"
             "    config = pathlib.Path(sys.argv[sys.argv.index('--config') + 1]).read_bytes()\n"
@@ -270,9 +275,26 @@ class StagedCommitChecksTests(unittest.TestCase):
         self.assertEqual((self.repo / "formatter-input").read_bytes(), b"let value = 1\n")
         self.assertEqual((self.repo / "formatter-config").read_bytes(), config)
         args = json.loads((self.repo / "formatter-args").read_text())
-        self.assertEqual(args[args.index("--stdin-path") + 1], name)
+        self.assertEqual(json.loads((self.repo / "formatter-files").read_text()), {name: "let value = 1\n"})
+        self.assertIn("--lint", args)
         self.assertEqual(self.git("write-tree").stdout, before)
         self.assertEqual((self.repo / name).read_bytes(), b"UNFORMATTED working copy")
+
+    def test_formatter_batches_staged_blobs_in_one_invocation(self):
+        names = ["one.swift", "folder/雪.swift", ".hidden.swift", ".folder/two.swift",
+                 "space ' quote\nfile.swift"]
+        for name in names:
+            self.stage(name, b"let value = 1\n")
+            (self.repo / name).write_bytes(b"UNFORMATTED working copy")
+        before = self.git("write-tree").stdout
+        self.check_hook(True)
+        self.assertEqual((self.repo / "formatter-calls").read_text(), "lint\n")
+        self.assertEqual(json.loads((self.repo / "formatter-files").read_text()),
+                         {name: "let value = 1\n" for name in names})
+        self.assertEqual(self.git("write-tree").stdout, before)
+        # A failure anywhere in the batch still blocks the hook.
+        self.stage(".hidden.swift", b"UNFORMATTED staged blob")
+        self.assertIn("SwiftFormat failed", self.check_hook(False))
 
     def test_unformatted_staged_swift_blocks_actual_commit(self):
         self.stage("source.swift", b"UNFORMATTED staged blob")
