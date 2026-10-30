@@ -1,6 +1,7 @@
 """Audit the Actions publication boundary; Ruby supplies the macOS YAML parser."""
 import itertools
 import json
+import os
 from pathlib import Path
 import subprocess
 import unittest
@@ -9,6 +10,29 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublicationWorkflow(unittest.TestCase):
+    def test_minimum_gate_fails_if_either_suite_does_not_succeed(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        job = json.loads(result.stdout)['jobs']['minimum-apple']
+        self.assertEqual(set(job['needs']), {'minimum-macos', 'minimum-ios'})
+        self.assertEqual(job['if'], 'always()')
+        gate = job['steps'][0]
+        self.assertEqual(gate['env'], {
+            'MACOS_RESULT': '${{ needs.minimum-macos.result }}',
+            'IOS_RESULT': '${{ needs.minimum-ios.result }}',
+        })
+        for macos, ios in itertools.product(
+                ('success', 'failure', 'cancelled', 'skipped'), repeat=2):
+            result = subprocess.run(
+                ['bash', '-c', gate['run']],
+                env=dict(os.environ, MACOS_RESULT=macos, IOS_RESULT=ios),
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode == 0,
+                             macos == ios == 'success', (macos, ios))
+
     def test_only_successful_main_push_can_publish(self):
         result = subprocess.run([
             'ruby', '-rjson', '-ryaml', '-e',
