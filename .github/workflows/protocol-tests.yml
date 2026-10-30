@@ -155,6 +155,94 @@ jobs:
           path: .test-results/
           include-hidden-files: true
           if-no-files-found: ignore
+  minimum-apple:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      IOS_SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-18-5
+      IOS_SIMULATOR_NAME: iPhone 16
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record minimum OS environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun simctl list runtimes
+            xcrun simctl list devices available
+          } 2>&1 | tee .test-results/minimum-apple-environment.txt
+          [[ "$(sw_vers -productVersion)" == 15.* ]]
+      - uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: '6.4.0'
+      - name: Select standalone Swift toolchain for Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler_directory=$(swiftly use --print-location)
+          toolchain_id=$(python3 - "$compiler_directory" <<'PY'
+          from pathlib import Path
+          import plistlib
+          import sys
+          location = Path(sys.argv[1]).resolve()
+          toolchain = next(path for path in (location, *location.parents)
+                           if path.suffix == '.xctoolchain')
+          with (toolchain / 'Info.plist').open('rb') as source:
+              print(plistlib.load(source)['CFBundleIdentifier'])
+          PY
+          )
+          echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
+      - name: Verify Swift 6.4 and package loading
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "TOOLCHAINS=$TOOLCHAINS"
+            command -v swift
+            swift --version
+            xcrun --find swift
+            xcrun swift --version
+          } 2>&1 | tee .test-results/minimum-apple-toolchain.txt
+          swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+          xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+          swift package dump-package > .test-results/minimum-apple-package.json
+      - name: Build macOS 15 tests
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --build-tests 2>&1 | tee .test-results/minimum-macos-build.txt
+      - name: macOS 15 public protocol and real transport tests
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/test-macos.py 2>&1 | tee .test-results/minimum-macos-tests.txt
+      - name: macOS 15 constrained-executor HTTP regression
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10 2>&1 | tee .test-results/minimum-macos-constrained.txt
+      - name: iOS 18 public protocol and real transport tests
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/test-ios.sh 2>&1 | tee .test-results/minimum-ios-tests.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: minimum-apple-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: error
   deploy:
     # Default success() also prevents publication after cancellation/failure.
     needs: [apple, ubuntu]
