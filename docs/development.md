@@ -101,7 +101,9 @@ The required `minimum-apple` job in the protocol workflow passes only when both
 image, Xcode 16.4, and standalone Swift 6.4.0. Xcode 16.4's embedded package
 resolver cannot load a tools-version 6.4 manifest, so iOS tests use Xcode 27.1
 on `xcode-27`. The macOS job exports the iOS 18.5 runtime for the iOS job to
-import and explicitly test with an iPhone 16 simulator.
+import and explicitly test with an iPhone 16 simulator. The iOS job removes
+preinstalled runtimes from its fresh hosted runner before downloading the older
+image to leave room for import and testing.
 
 The jobs fail if the OS, compiler, runtime, build, or tests are unavailable or
 incompatible. The `minimum-macos-test-results` and `minimum-ios-test-results`

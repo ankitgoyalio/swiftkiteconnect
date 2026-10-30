@@ -261,6 +261,19 @@ jobs:
       IOS_SIMULATOR_NAME: iPhone 16
     steps:
       - uses: actions/checkout@v7
+      - name: Free space for iOS 18 runtime
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          {
+            df -h /
+            # This fresh hosted runner only tests iOS 18.5. Remove its unused
+            # preinstalled images before downloading and staging the older one.
+            xcrun simctl runtime delete all
+            df -h /
+          } 2>&1 | tee .test-results/minimum-ios-storage.txt
       - uses: actions/download-artifact@v8
         with:
           name: ios18-runtime
