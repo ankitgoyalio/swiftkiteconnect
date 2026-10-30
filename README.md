@@ -37,8 +37,9 @@ The package requires Swift 6.4 and Swift Package Manager.
 | macOS | 15 |
 | Linux | CI targets Ubuntu 24.04 |
 
-Minimum iOS and macOS runtime qualification remains pending. See
-[verification evidence](Documentation/Verification.md) for tested environments and remaining release gates.
+Runtime qualification includes macOS 15.7.9 and iOS 18.5. See
+[verification evidence](Documentation/Verification.md) for the tested revision,
+compiler versions, and remaining limitations.
 
 ## Installation
 
@@ -46,9 +47,8 @@ Add `https://github.com/ankitgoyalio/swiftkiteconnect` as a Swift package depend
 in Xcode or your `Package.swift`. Add the `KiteConnect` library product to your
 application target. The module name is also `KiteConnect`.
 
-Once the **0.1.0** tag is published, select an exact version requirement of
-**0.1.0** in Xcode, or use `exact: "0.1.0"` in your package dependency.
-Until publication, pin a reviewed commit revision. The
+Select an exact version requirement of **0.1.0** in Xcode, or use
+`exact: "0.1.0"` in your package dependency. The
 [releases page](https://github.com/ankitgoyalio/swiftkiteconnect/releases)
 lists published versions.
 
@@ -76,9 +76,8 @@ or [build the documentation locally](Documentation/DocC.md).
 
 ## Release status
 
-0.1.0 is the planned first release. Publication remains blocked on minimum
-macOS 15 and iOS 18 runtime qualification. This early 0.x release has incomplete
-authenticated sandbox qualification, and production testing is not claimed. Review the
+0.1.0 is an early 0.x release. Authenticated sandbox qualification remains
+incomplete, and production testing is not claimed. Review the
 [verification evidence and remaining qualification](Documentation/Verification.md)
 before adopting the package.
 

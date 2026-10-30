@@ -1,7 +1,7 @@
 # Verification and remaining qualification
 
 This unofficial package is partial 0.x against the pinned 2026-10-27 snapshot.
-No 1.0 qualification, production testing or release publication is claimed.
+No 1.0 qualification or production testing is claimed.
 [Coverage](Coverage.md) and [CapabilityCoverage](CapabilityCoverage.md) describe
 implemented scope; the [request and response contracts](../Sources/KiteConnect/KiteConnect.docc/Request-and-response-contracts.md) describe behavior.
 
@@ -48,6 +48,30 @@ Publisher examples are checked offline.
 Reproduce checks with the [development guide](../docs/development.md#run-checks).
 CI retains logs, result bundles, and process samples on hangs. These artifacts
 identify the tested revision; historical counts above are not current thresholds.
+
+## Minimum Apple OS qualification
+
+On 2026-10-30, the [Protocol tests run](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454)
+passed `apple`, `ubuntu`, and the required `minimum-apple` gate for source
+`8cb5b737feaed8bb59e692b8b38a508047e8e778`. The minimum OS jobs tested PR merge
+revision `ac73fbc7ca1fec0f5f2ede3a7e7489526a57aeaf`.
+
+- macOS 15.7.9, build 24G830, arm64, Xcode 16.4, and standalone Swift 6.4.0:
+  the full deterministic suite and constrained-executor HTTP regression passed.
+  [macOS evidence](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454/artifacts/12957360417)
+  includes the environment, compiler, source revision, and full summaries.
+- iOS 18.5, build 22F77, on an iPhone 16 simulator with Xcode 27.1 and its bundled
+  Swift 6.4: the full deterministic suite passed.
+  [iOS evidence](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454/artifacts/12957496855)
+  includes the host and compiler inventory, runtime import log, test log, source
+  revision, and result bundle.
+
+These results qualify the macOS 15 and iOS 18 families at the recorded patch
+versions. They do not establish execution on macOS 15.0 or iOS 18.0, authenticated
+sandbox completeness, or production qualification. The same run retains
+[newer Apple results](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454/artifacts/12957670093),
+[Ubuntu results](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454/artifacts/12956961789),
+and the [DocC artifact](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/41008374454/artifacts/12956359893).
 
 ## Executed sandbox checks
 
@@ -96,13 +120,11 @@ coverage matrices.
 
 ## Remaining qualification
 
-Publication of 0.1.0 remains blocked on the minimum OS release gate below.
-Authenticated sandbox qualification is incomplete, and production testing is
-not claimed. The 0.x coverage allowance does not waive the minimum OS gate.
-
-Minimum macOS 15 and iOS 18 runtime qualification has not been executed. Follow
+Minimum OS execution is recorded above. Require `apple`, `ubuntu`, and
+`minimum-apple` to pass on the final candidate before publication, and repeat
 the [minimum OS release gate](../docs/development.md#qualify-minimum-apple-os-versions-before-release)
-before publication. The newer Apple CI runtimes do not satisfy that gate.
+for subsequent candidates. Authenticated sandbox qualification remains incomplete,
+and production testing is not claimed.
 
 The package remains partial 0.x. #27 tracks pending remote qualification.
 Read its current body before planning a remote run. A passed day-history request does not qualify every interval,

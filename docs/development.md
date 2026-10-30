@@ -96,9 +96,26 @@ revision on both minimum OS versions and retain the results with that revision.
    release publication. Repeat this procedure for each release candidate and
    after changes to networking, concurrency, dependencies or deployment targets.
 
-This is a manual release gate until minimum OS environments are provisioned.
-The current newer-runtime CI remains required. Its success does not satisfy this
-gate, and no minimum OS execution is claimed by these instructions.
+The required `minimum-apple` job in the protocol workflow passes only when both
+`minimum-macos` and `minimum-ios` succeed. The macOS job uses GitHub's `macos-15`
+image, Xcode 16.4, and standalone Swift 6.4.0. Xcode 16.4's embedded package
+resolver cannot load a tools-version 6.4 manifest, so iOS tests use Xcode 27.1
+on `xcode-27`. The macOS job exports the iOS 18.5 runtime for the iOS job to
+import and explicitly test with an iPhone 16 simulator. The iOS job removes
+preinstalled runtimes from its fresh hosted runner before downloading the older
+image to leave room for import and testing.
+
+The jobs fail if the OS, compiler, runtime, build, or tests are unavailable or
+incompatible. The `minimum-macos-test-results` and `minimum-ios-test-results`
+artifacts retain the candidate SHA, environment inventory, logs, and iOS result
+bundle. The intermediate `ios18-runtime` artifact expires after one day. These
+checks qualify the macOS 15 and iOS 18 families at the recorded patch versions,
+not specifically macOS 15.0 or iOS 18.0.
+
+Before release, require a successful `minimum-apple` run for the candidate and
+record its evidence in Verification.md. The newer-runtime `apple` job and the
+`ubuntu` job also remain required. Workflow configuration alone does not claim
+successful qualification.
 
 ## Review dependency updates
 

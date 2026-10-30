@@ -155,6 +155,180 @@ jobs:
           path: .test-results/
           include-hidden-files: true
           if-no-files-found: ignore
+  minimum-macos:
+    runs-on: macos-15
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record minimum OS environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun simctl list runtimes
+            xcrun simctl list devices available
+          } 2>&1 | tee .test-results/minimum-apple-environment.txt
+          [[ "$(sw_vers -productVersion)" == 15.* ]]
+      - uses: swift-actions/setup-swift@v3
+        with:
+          swift-version: '6.4.0'
+      - name: Select standalone Swift toolchain for Xcode
+        shell: bash
+        run: |
+          set -euo pipefail
+          compiler_directory=$(swiftly use --print-location)
+          toolchain_id=$(python3 - "$compiler_directory" <<'PY'
+          from pathlib import Path
+          import plistlib
+          import sys
+          location = Path(sys.argv[1]).resolve()
+          toolchain = next(path for path in (location, *location.parents)
+                           if path.suffix == '.xctoolchain')
+          with (toolchain / 'Info.plist').open('rb') as source:
+              print(plistlib.load(source)['CFBundleIdentifier'])
+          PY
+          )
+          echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
+      - name: Verify Swift 6.4 and package loading
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            echo "TOOLCHAINS=$TOOLCHAINS"
+            command -v swift
+            swift --version
+            xcrun --find swift
+            xcrun swift --version
+          } 2>&1 | tee .test-results/minimum-apple-toolchain.txt
+          swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+          xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+          swift package dump-package > .test-results/minimum-apple-package.json
+      - name: Build macOS 15 tests
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          swift build --build-tests 2>&1 | tee .test-results/minimum-macos-build.txt
+      - name: macOS 15 public protocol and real transport tests
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/test-macos.py 2>&1 | tee .test-results/minimum-macos-tests.txt
+      - name: macOS 15 constrained-executor HTTP regression
+        timeout-minutes: 3
+        shell: bash
+        run: |
+          set -euo pipefail
+          env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10 2>&1 | tee .test-results/minimum-macos-constrained.txt
+      # Xcode 16's embedded package resolver cannot load tools-version 6.4.
+      # Export its older runtime for the Xcode 27 iOS qualification job instead.
+      - name: Export iOS 18.5 runtime
+        timeout-minutes: 15
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -downloadPlatform iOS -buildVersion 18.5 -exportPath "$RUNNER_TEMP/ios18-runtime" 2>&1 | tee .test-results/ios18-runtime-export.txt
+          test -n "$(find "$RUNNER_TEMP/ios18-runtime" -name '*.dmg' -print -quit)"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ios18-runtime
+          path: ${{ runner.temp }}/ios18-runtime/*.dmg
+          compression-level: 0
+          retention-days: 1
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: minimum-macos-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: error
+  minimum-ios:
+    needs: minimum-macos
+    runs-on: xcode-27
+    timeout-minutes: 45
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_27.1.app/Contents/Developer
+      IOS_SIMULATOR_RUNTIME: com.apple.CoreSimulator.SimRuntime.iOS-18-5
+      IOS_SIMULATOR_NAME: iPhone 16
+    steps:
+      - uses: actions/checkout@v7
+      - name: Free space for iOS 18 runtime
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          {
+            df -h /
+            # This fresh hosted runner only tests iOS 18.5. Remove its unused
+            # preinstalled images before downloading and staging the older one.
+            xcrun simctl runtime delete all
+            df -h /
+          } 2>&1 | tee .test-results/minimum-ios-storage.txt
+      - uses: actions/download-artifact@v8
+        with:
+          name: ios18-runtime
+          path: ${{ runner.temp }}/ios18-runtime
+      - name: Import iOS 18.5 runtime
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          for image in "$RUNNER_TEMP"/ios18-runtime/*.dmg; do
+            xcodebuild -importPlatform "$image" 2>&1 | tee -a .test-results/ios18-runtime-import.txt
+          done
+          rm -f "$RUNNER_TEMP"/ios18-runtime/*.dmg
+          xcrun simctl create 'iPhone 16' com.apple.CoreSimulator.SimDeviceType.iPhone-16 "$IOS_SIMULATOR_RUNTIME"
+      - name: Verify iOS qualification environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun swift --version
+            xcrun simctl list runtimes
+            xcrun simctl list devices available
+          } 2>&1 | tee .test-results/minimum-ios-environment.txt
+          xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+      - name: iOS 18 public protocol and real transport tests
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/test-ios.sh 2>&1 | tee .test-results/minimum-ios-tests.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: minimum-ios-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: error
+  minimum-apple:
+    needs: [minimum-macos, minimum-ios]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require both minimum OS suites
+        shell: bash
+        env:
+          MACOS_RESULT: ${{ needs.minimum-macos.result }}
+          IOS_RESULT: ${{ needs.minimum-ios.result }}
+        run: |
+          set -euo pipefail
+          [[ "$MACOS_RESULT" == success && "$IOS_RESULT" == success ]]
   deploy:
     # Default success() also prevents publication after cancellation/failure.
     needs: [apple, ubuntu]
