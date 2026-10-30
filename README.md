@@ -46,8 +46,9 @@ Add `https://github.com/ankitgoyalio/swiftkiteconnect` as a Swift package depend
 in Xcode or your `Package.swift`. Add the `KiteConnect` library product to your
 application target. The module name is also `KiteConnect`.
 
-For the 0.1.0 release, select version **0.1.0** once its tag is published.
-Until then, pin a reviewed commit revision. The
+Once the **0.1.0** tag is published, select an exact version requirement of
+**0.1.0** in Xcode, or use `exact: "0.1.0"` in your package dependency.
+Until publication, pin a reviewed commit revision. The
 [releases page](https://github.com/ankitgoyalio/swiftkiteconnect/releases)
 lists published versions.
 
@@ -75,8 +76,9 @@ or [build the documentation locally](Documentation/DocC.md).
 
 ## Release status
 
-0.1.0 is an early 0.x release. Authenticated sandbox qualification remains
-incomplete, and production testing is not claimed. Review the
+0.1.0 is the planned first release. Publication remains blocked on minimum
+macOS 15 and iOS 18 runtime qualification. This early 0.x release has incomplete
+authenticated sandbox qualification, and production testing is not claimed. Review the
 [verification evidence and remaining qualification](Documentation/Verification.md)
 before adopting the package.
 
