@@ -12,6 +12,17 @@ documentation suite. They add no authenticated remote qualification.
 
 ## Automated platform checks
 
+For 0.1.0 preparation, the 2026-10-29
+[Protocol tests run](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/40849402303)
+passed the `apple` and `ubuntu` jobs at
+`aca9ae13ba0c3e7ac2a444c9bf82e0bbfdd8b41a`. The run retains
+[Apple test results](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/40849402303/artifacts/12887595584),
+[Ubuntu test results](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/40849402303/artifacts/12886138722),
+and the [DocC artifact](https://github.com/ankitgoyalio/swiftkiteconnect/actions/runs/40849402303/artifacts/12885923326).
+The workflow uses Swift 6.4, Ubuntu 24.04, Xcode 27.1, and the iOS 27.0
+simulator. These results establish routine platform checks for that revision.
+They do not qualify macOS 15 or iOS 18, or a later release candidate.
+
 Hosted Apple (macOS and iOS Simulator) and Ubuntu checks passed on the pre-cleanup
 source `4ffb6e4`; [PR #28 checks](https://github.com/ankitgoyalio/swiftkiteconnect/pull/28/checks)
 record that historical branch. Local full suites at that revision
@@ -84,6 +95,10 @@ or working-tree status and execution date. Do not copy its pending checklist int
 coverage matrices.
 
 ## Remaining qualification
+
+Publication of 0.1.0 remains blocked on the minimum OS release gate below.
+Authenticated sandbox qualification is incomplete, and production testing is
+not claimed. The 0.x coverage allowance does not waive the minimum OS gate.
 
 Minimum macOS 15 and iOS 18 runtime qualification has not been executed. Follow
 the [minimum OS release gate](../docs/development.md#qualify-minimum-apple-os-versions-before-release)
