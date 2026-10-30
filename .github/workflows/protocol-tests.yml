@@ -235,7 +235,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          xcodebuild -downloadPlatform iOS -buildVersion 18.5 -architectureVariant universal -exportPath "$RUNNER_TEMP/ios18-runtime" 2>&1 | tee .test-results/ios18-runtime-export.txt
+          xcodebuild -downloadPlatform iOS -buildVersion 18.5 -exportPath "$RUNNER_TEMP/ios18-runtime" 2>&1 | tee .test-results/ios18-runtime-export.txt
           test -n "$(find "$RUNNER_TEMP/ios18-runtime" -name '*.dmg' -print -quit)"
       - uses: actions/upload-artifact@v7
         with:
