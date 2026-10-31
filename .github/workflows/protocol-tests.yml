@@ -269,6 +269,35 @@ jobs:
         run: |
           set -euo pipefail
           env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10 2>&1 | tee .test-results/minimum-macos-constrained.txt
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: minimum-macos-test-results
+          path: .test-results/
+          include-hidden-files: true
+          if-no-files-found: error
+  ios18-runtime:
+    runs-on: macos-15
+    timeout-minutes: 35
+    outputs:
+      artifact-id: ${{ steps.runtime-upload.outputs.artifact-id }}
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v7
+      - name: Record runtime export environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .test-results
+          {
+            git rev-parse HEAD
+            sw_vers
+            uname -m
+            xcodebuild -version
+            xcrun simctl list runtimes
+            df -h /
+          } 2>&1 | tee .test-results/ios18-runtime-environment.txt
       # Xcode 16's embedded package resolver cannot load tools-version 6.4.
       # Export its older runtime for the Xcode 27 iOS qualification job instead.
       - name: Export iOS 18.5 runtime
@@ -277,23 +306,36 @@ jobs:
         run: |
           set -euo pipefail
           xcodebuild -downloadPlatform iOS -buildVersion 18.5 -exportPath "$RUNNER_TEMP/ios18-runtime" 2>&1 | tee .test-results/ios18-runtime-export.txt
-          test -n "$(find "$RUNNER_TEMP/ios18-runtime" -name '*.dmg' -print -quit)"
+          xcrun simctl list runtimes --json > .test-results/ios18-runtime-export-inventory.json
+          python3 Scripts/runtime-artifact.py create "$RUNNER_TEMP/ios18-runtime" .test-results/ios18-runtime-export-inventory.json | tee .test-results/ios18-runtime-manifest.json
       - uses: actions/upload-artifact@v7
+        id: runtime-upload
+        timeout-minutes: 10
         with:
           name: ios18-runtime
-          path: ${{ runner.temp }}/ios18-runtime/*.dmg
+          path: |
+            ${{ runner.temp }}/ios18-runtime/*.dmg
+            ${{ runner.temp }}/ios18-runtime/manifest.json
           compression-level: 0
           retention-days: 1
           if-no-files-found: error
+      - name: Clean up runtime export and record storage
+        if: always()
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          mkdir -p .test-results
+          rm -f "$RUNNER_TEMP"/ios18-runtime/*.dmg
+          df -h / 2>&1 | tee .test-results/ios18-runtime-storage.txt
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: minimum-macos-test-results
+          name: ios18-runtime-results
           path: .test-results/
           include-hidden-files: true
           if-no-files-found: error
   minimum-ios:
-    needs: minimum-macos
+    needs: ios18-runtime
     runs-on: xcode-27
     timeout-minutes: 45
     env:
@@ -315,10 +357,20 @@ jobs:
             xcrun simctl runtime delete all
             df -h /
           } 2>&1 | tee .test-results/minimum-ios-storage.txt
+      # artifact-ids selects the immutable upload from this run; no cross-run token.
       - uses: actions/download-artifact@v8
+        timeout-minutes: 10
         with:
-          name: ios18-runtime
+          artifact-ids: ${{ needs.ios18-runtime.outputs.artifact-id }}
+          merge-multiple: true
           path: ${{ runner.temp }}/ios18-runtime
+      - name: Verify runtime artifact provenance and checksum
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp "$RUNNER_TEMP/ios18-runtime/manifest.json" .test-results/ios18-runtime-manifest.json
+          python3 Scripts/runtime-artifact.py verify "$RUNNER_TEMP/ios18-runtime" .test-results/unused.json 2>&1 | tee .test-results/ios18-runtime-verification.txt
       - name: Import iOS 18.5 runtime
         timeout-minutes: 10
         shell: bash
@@ -344,12 +396,26 @@ jobs:
             xcrun simctl list devices available
           } 2>&1 | tee .test-results/minimum-ios-environment.txt
           xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+          xcrun simctl list runtimes --json > .test-results/ios18-runtime-import-inventory.json
+          python3 Scripts/runtime-artifact.py verify-installed "$RUNNER_TEMP/ios18-runtime" .test-results/ios18-runtime-import-inventory.json 2>&1 | tee .test-results/ios18-runtime-installed-verification.txt
       - name: iOS 18 public protocol and real transport tests
         timeout-minutes: 25
         shell: bash
         run: |
           set -euo pipefail
           bash Scripts/test-ios.sh 2>&1 | tee .test-results/minimum-ios-tests.txt
+      - name: Clean up runtime import and record diagnostics
+        if: always()
+        timeout-minutes: 2
+        shell: bash
+        run: |
+          mkdir -p .test-results
+          rm -f "$RUNNER_TEMP"/ios18-runtime/*.dmg
+          {
+            df -h /
+            xcrun simctl list runtimes
+            xcrun simctl runtime list
+          } 2>&1 | tee .test-results/minimum-ios-final-diagnostics.txt
       - uses: actions/upload-artifact@v7
         if: always()
         with:
