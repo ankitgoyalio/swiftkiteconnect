@@ -100,16 +100,25 @@ The required `minimum-apple` job in the protocol workflow passes only when both
 `minimum-macos` and `minimum-ios` succeed. The macOS job uses GitHub's `macos-15`
 image, Xcode 16.4, and standalone Swift 6.4.0. Xcode 16.4's embedded package
 resolver cannot load a tools-version 6.4 manifest, so iOS tests use Xcode 27.1
-on `xcode-27`. The macOS job exports the iOS 18.5 runtime for the iOS job to
-import and explicitly test with an iPhone 16 simulator. The iOS job removes
+on `xcode-27`. The independent `ios18-runtime` job uses Xcode 16.4 on
+`macos-15` to export the iOS 18.5 runtime while minimum macOS tests run.
+Minimum iOS waits only for that runtime job, then explicitly tests with an
+iPhone 16 simulator. The iOS job removes
 preinstalled runtimes from its fresh hosted runner before downloading the older
 image to leave room for import and testing.
 
 The jobs fail if the OS, compiler, runtime, build, or tests are unavailable or
 incompatible. The `minimum-macos-test-results` and `minimum-ios-test-results`
 artifacts retain the candidate SHA, environment inventory, logs, and iOS result
-bundle. The intermediate `ios18-runtime` artifact expires after one day. These
-checks qualify the macOS 15 and iOS 18 families at the recorded patch versions,
+bundle. The intermediate `ios18-runtime` artifact expires after one day.
+The consumer selects its immutable artifact ID from the same workflow run.
+[Runtime transfer verification](../Scripts/runtime-artifact.py) checks the image
+SHA-256, repository, run ID, attempt, candidate SHA, exporter architecture, and
+explicit iOS 18.5 identity before import. After import, the installed runtime
+build must match the export inventory. Both jobs retain the manifest, runtime
+inventory, and storage diagnostics; `ios18-runtime-results` also retains export
+logs. A missing or mismatched artifact blocks iOS qualification and the
+`minimum-apple` gate. These checks qualify the macOS 15 and iOS 18 families at the recorded patch versions,
 not specifically macOS 15.0 or iOS 18.0.
 
 Before release, require a successful `minimum-apple` run for the candidate and
