@@ -92,3 +92,46 @@ sys.exit(int(os.environ.get('FINAL_STATUS', '0')))
                 env['IOS_SIMULATOR_RUNTIME'] = os.environ.get('IOS_SIMULATOR_RUNTIME', '')
                 env['SDK'] = 'SDK2'
                 self.assertNotEqual(identity(), original)
+
+
+class IOSRunnerArguments(unittest.TestCase):
+    def test_optional_cache_arguments_under_system_bash(self):
+        # Stub external tools: this exercises argument construction, not a device.
+        import json
+        import shutil
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            python = root / 'python3'
+            python.symlink_to(sys.executable)
+            xcrun = root / 'xcrun'
+            xcrun.write_text('#!/bin/sh\necho \'{"devices":{"test.iOS-18-0":[{"name":"iPhone Test","udid":"fixture-id"}]}}\'\n')
+            xcrun.chmod(0o755)
+            xcode = root / 'xcodebuild'
+            xcode.write_text(f'#!{sys.executable}\nimport json, os, sys\nopen(os.environ["ARGUMENTS"], "w").write(json.dumps(sys.argv[1:]))\n')
+            xcode.chmod(0o755)
+            for cached in (False, True):
+                with self.subTest(cached=cached):
+                    env = dict(os.environ, PATH=str(root), ARGUMENTS=str(root / 'args'))
+                    for key in ('CI_XCODE_PACKAGE_CACHE', 'CI_XCODE_PACKAGE_CLONES',
+                                'IOS_SIMULATOR_RUNTIME', 'IOS_SIMULATOR_NAME'):
+                        env.pop(key, None)
+                    # mkdir and mktemp remain real; simulator and build calls are fixtures.
+                    for utility in ('mkdir', 'mktemp'):
+                        target = root / utility
+                        if not target.exists():
+                            target.symlink_to(shutil.which(utility))
+                    if cached:
+                        env.update(CI_XCODE_PACKAGE_CACHE='/cache with spaces',
+                                   CI_XCODE_PACKAGE_CLONES='/clones with spaces')
+                    result = subprocess.run(['/bin/bash', str(ROOT / 'Scripts/test-ios.sh')],
+                                            cwd=root, env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    arguments = json.loads((root / 'args').read_text())
+                    self.assertEqual(arguments[:3], ['test', '-scheme', 'KiteConnect'])
+                    if cached:
+                        self.assertEqual(arguments[3:8], ['-packageCachePath', '/cache with spaces',
+                            '-clonedSourcePackagesDirPath', '/clones with spaces',
+                            '-onlyUsePackageVersionsFromResolvedFile'])
+                    else:
+                        self.assertNotIn('-packageCachePath', arguments)
+                    self.assertIn('platform=iOS Simulator,id=fixture-id', arguments)
