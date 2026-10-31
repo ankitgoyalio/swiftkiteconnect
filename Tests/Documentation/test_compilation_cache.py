@@ -3,6 +3,7 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -14,6 +15,34 @@ class CompilationCache(unittest.TestCase):
     def run_cli(self, *args, cwd, env=None):
         return subprocess.run(['python3', str(SCRIPT), *args], cwd=cwd,
                               env=env, capture_output=True, text=True)
+
+    def test_minimum_build_step_handles_cold_warm_and_cache_off_under_system_bash(self):
+        result = subprocess.run(['ruby', '-rjson', '-ryaml', '-e',
+                                 'puts JSON.generate(YAML.load_file(ARGV[0]))',
+                                 str(ROOT / '.github/workflows/protocol-tests.yml')],
+                                check=True, capture_output=True, text=True)
+        steps = json.loads(result.stdout)['jobs']['minimum-macos']['steps']
+        build = next(step for step in steps if step.get('name') == 'Build macOS 15 tests')
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / '.test-results').mkdir()
+            for name in ('python3', 'swift'):
+                tool = root / name
+                tool.write_text(f'#!{sys.executable}\nimport json, sys\nprint(json.dumps(sys.argv[1:]))\n')
+                tool.chmod(0o755)
+            for mode, matched, expected in (
+                    ('cold', '', ['Scripts/ci-compilation-cache.py', 'build']),
+                    ('warm', '', ['Scripts/ci-compilation-cache.py', 'build']),
+                    ('warm', 'compatible-key', ['Scripts/ci-compilation-cache.py', 'build', '--restored']),
+                    ('off', '', ['build', '--build-tests']),
+                    ('', '', ['build', '--build-tests'])):
+                with self.subTest(mode=mode, matched=matched):
+                    env = dict(os.environ, PATH=f'{root}:{os.environ["PATH"]}',
+                               COMPILATION_MODE=mode, MATCHED_COMPILATION=matched)
+                    result = subprocess.run(['/bin/bash', '-c', build['run']], cwd=root,
+                                            env=env, capture_output=True, text=True)
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertEqual(json.loads(result.stdout), expected)
 
     def test_probe_changes_compiled_source_and_test_expectation_together(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -91,6 +120,34 @@ sys.exit(int(os.environ.get('BUILD_STATUS', '0')))
                 self.assertNotEqual(key(), original, name)
                 (root / name).write_text(previous)
 
+    def test_identity_uses_selected_compiler_instead_of_temporary_swiftly_launcher(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'Package.swift').write_text('// swift-tools-version: 6.4\n')
+            (root / 'Package.resolved').write_text('{"pins": []}')
+            compiler = root / 'toolchain/usr/bin/swift'
+            compiler.parent.mkdir(parents=True)
+            compiler.write_text('#!/bin/sh\necho "Swift 6.4 stable target"\n')
+            compiler.chmod(0o755)
+            for name in ('sw_vers', 'xcodebuild', 'xcrun'):
+                tool = root / name
+                tool.write_text('#!/bin/sh\nif [ "$1" = --find ]; then\n'
+                                '  echo "$SELECTED_COMPILER"\nelse\n  echo stable\nfi\n')
+                tool.chmod(0o755)
+            identities = []
+            for attempt in ('random-install-one', 'random-install-two'):
+                launcher = root / attempt / 'swift'
+                launcher.parent.mkdir()
+                launcher.write_text(f'#!/bin/sh\nexec "{compiler}" "$@"\n')
+                launcher.chmod(0o755)
+                env = dict(os.environ, PATH=f'{launcher.parent}:{root}:{os.environ["PATH"]}',
+                           SELECTED_COMPILER=str(compiler))
+                result = self.run_cli('identity', cwd=root, env=env)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                identities.append(json.loads(result.stdout))
+            self.assertEqual(identities[0]['key'], identities[1]['key'])
+            self.assertEqual(identities[0]['identity']['compiler_path'], str(compiler.resolve()))
+
     def test_workflow_keeps_pilot_off_and_preserves_candidate_checks(self):
         result = subprocess.run(['ruby', '-rjson', '-ryaml', '-e',
                                  'puts JSON.generate(YAML.load_file(ARGV[0]))',
@@ -141,3 +198,15 @@ sys.exit(int(os.environ.get('BUILD_STATUS', '0')))
             cached.write_text(text.replace('compilationCacheSourceEdit()', 'otherTest()'))
             clean.write_text(cached.read_text())
             self.assertNotEqual(self.run_cli(*args, cwd=root).returncode, 0)
+
+    def test_comparison_accepts_a_successful_single_test_summary(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name in ('cached.txt', 'clean.txt'):
+                (root / name).write_text(
+                    '✔ Test compilationCacheSourceEdit() passed after 0.01 seconds.\n'
+                    '✔ Test run with 1 test in 0 suites passed after 0.01 seconds.\n')
+            result = self.run_cli('compare-results', '--cached', str(root / 'cached.txt'),
+                                  '--clean', str(root / 'clean.txt'), cwd=root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)['observations'], 1)

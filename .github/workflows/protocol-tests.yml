@@ -229,9 +229,9 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$COMPILATION_MODE" != off && -n "$COMPILATION_MODE" ]]; then
-            args=()
-            if [[ -n "$MATCHED_COMPILATION" ]]; then args+=(--restored); fi
-            python3 Scripts/ci-compilation-cache.py build "${args[@]}" 2>&1 | tee .test-results/minimum-macos-build.txt
+            set -- build
+            if [[ -n "$MATCHED_COMPILATION" ]]; then set -- "$@" --restored; fi
+            python3 Scripts/ci-compilation-cache.py "$@" 2>&1 | tee .test-results/minimum-macos-build.txt
           else
             swift build --build-tests 2>&1 | tee .test-results/minimum-macos-build.txt
           fi

@@ -40,7 +40,9 @@ def identity():
         'downloads': downloads,
         'os_build': output('sw_vers'),
         'target': output('swift', '-print-target-info'),
-        'compiler_path': str(Path(shutil.which('swift')).resolve()),
+        # setup-swift puts a randomly located swiftly launcher on PATH. Key the
+        # selected toolchain executable, which is also verified by preflight.
+        'compiler_path': str(Path(output('xcrun', '--find', 'swift')).resolve()),
         'sdk_path': output('xcrun', '--sdk', 'macosx', '--show-sdk-path'),
         'sdk_version': output('xcrun', '--sdk', 'macosx', '--show-sdk-version'),
         'workspace': str(Path.cwd().resolve()),
@@ -88,7 +90,7 @@ def build(restored):
 def outcomes(path):
     text = path.read_text()
     results = Counter(re.findall(r'Test (?!run with )(.+?) (passed|skipped|failed)(?: after|[ .:]|$)', text))
-    if not re.search(r'Test run with [1-9][0-9]* tests.*passed', text):
+    if not re.search(r'Test run with [1-9][0-9]* tests?\b.*passed', text):
         raise ValueError(f'Missing successful complete suite summary: {path}')
     if not results or any(status == 'failed' for name, status in results):
         raise ValueError(f'Missing or failed named tests: {path}')
