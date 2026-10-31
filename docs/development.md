@@ -180,6 +180,12 @@ For each comparison:
    Include the median, range, runner variation and unavailable measurements.
    Keep raw logs and per-run JSON out of tracked documentation.
 
+## Evaluate minimum macOS compilation caching
+
+Follow the [compilation cache experiment](ci-compilation-cache.md) to compare
+minimum macOS builds with the download-only condition. Keep the experiment off
+until hosted correctness and total-time measurements support enabling it.
+
 ## Review dependency updates
 
 [Dependabot configuration](../.github/dependabot.yml) checks SwiftPM packages and

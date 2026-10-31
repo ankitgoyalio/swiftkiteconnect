@@ -10,6 +10,11 @@ on:
         type: choice
         default: 'off'
         options: ['off', 'cold', 'warm', 'invalid']
+      compilation_cache:
+        description: 'Minimum macOS compilation pilot (requires package_cache; default off)'
+        type: choice
+        default: 'off'
+        options: ['off', 'cold', 'warm', 'invalid', 'compare']
 concurrency:
   group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -237,65 +242,33 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
-      - name: Record minimum OS environment
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p .test-results
-          {
-            git rev-parse HEAD
-            sw_vers
-            uname -m
-            xcodebuild -version
-            xcrun simctl list runtimes
-            xcrun simctl list devices available
-          } 2>&1 | tee .test-results/minimum-apple-environment.txt
-          [[ "$(sw_vers -productVersion)" == 15.* ]]
-      - uses: swift-actions/setup-swift@v3
-        with:
-          swift-version: '6.4.0'
-      - name: Select standalone Swift toolchain for Xcode
-        shell: bash
-        run: |
-          set -euo pipefail
-          compiler_directory=$(swiftly use --print-location)
-          toolchain_id=$(python3 - "$compiler_directory" <<'PY'
-          from pathlib import Path
-          import plistlib
-          import sys
-          location = Path(sys.argv[1]).resolve()
-          toolchain = next(path for path in (location, *location.parents)
-                           if path.suffix == '.xctoolchain')
-          with (toolchain / 'Info.plist').open('rb') as source:
-              print(plistlib.load(source)['CFBundleIdentifier'])
-          PY
-          )
-          echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
-      - name: Verify Swift 6.4 and package loading
-        shell: bash
-        run: |
-          set -euo pipefail
-          {
-            echo "TOOLCHAINS=$TOOLCHAINS"
-            command -v swift
-            swift --version
-            xcrun --find swift
-            xcrun swift --version
-          } 2>&1 | tee .test-results/minimum-apple-toolchain.txt
-          swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
-          xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
-          swift package dump-package > .test-results/minimum-apple-package.json
+      - uses: ./.github/actions/minimum-macos-environment
       - if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
         uses: ./.github/actions/package-downloads
         with:
           kind: swift
           mode: ${{ inputs.package_cache }}
+      - if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache != 'off'
+        id: compilation
+        uses: ./.github/actions/compilation-cache
+        with:
+          mode: ${{ inputs.compilation_cache }}
+          downloads: ${{ inputs.package_cache }}
       - name: Build macOS 15 tests
         timeout-minutes: 15
         shell: bash
+        env:
+          COMPILATION_MODE: ${{ inputs.compilation_cache }}
+          MATCHED_COMPILATION: ${{ steps.compilation.outputs.matched }}
         run: |
           set -euo pipefail
-          swift build --build-tests 2>&1 | tee .test-results/minimum-macos-build.txt
+          if [[ "$COMPILATION_MODE" != off && -n "$COMPILATION_MODE" ]]; then
+            args=()
+            if [[ -n "$MATCHED_COMPILATION" ]]; then args+=(--restored); fi
+            python3 Scripts/ci-compilation-cache.py build "${args[@]}" 2>&1 | tee .test-results/minimum-macos-build.txt
+          else
+            swift build --build-tests 2>&1 | tee .test-results/minimum-macos-build.txt
+          fi
       - name: macOS 15 public protocol and real transport tests
         timeout-minutes: 3
         shell: bash
@@ -308,6 +281,22 @@ jobs:
         run: |
           set -euo pipefail
           env LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 swift test --skip-build --filter 'real (local )?HTTP' --maximum-repetitions 10 2>&1 | tee .test-results/minimum-macos-constrained.txt
+      - name: Compare edited candidate against clean compilation
+        if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache == 'compare'
+        timeout-minutes: 20
+        run: python3 Scripts/ci-compilation-cache.py compare
+      - name: Record compilation storage before transfer
+        if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache != 'off'
+        run: du -sk .build | tee .test-results/compilation-cache/storage-kib.txt
+      - name: Save qualified compilation products
+        if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache != 'off'
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            .build/*/debug
+            .build/build.db
+            .build/debug.yaml
+          key: ${{ steps.compilation.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@v7
         if: always()
         with:

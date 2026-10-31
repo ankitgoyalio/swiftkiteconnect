@@ -15,7 +15,7 @@ GUIDES = {"README.md", "Coverage.md", "CapabilityCoverage.md",
           "Publisher.md", "Verification.md", "SDKParity.md", "SandboxVerification.md",
           "DocC.md", "Pages.md", "DocCCoverage.json", "DocCCoveragePortfolio.json", "DocCCoverageOrders.json"}
 ROOT_GUIDES = {"README.md", "AGENTS.md", "GLOSSARY.md"}
-PROJECT_GUIDES = {"development.md", "sdk-spec.md", "sdk-spec-user-stories.md",
+PROJECT_GUIDES = {"development.md", "ci-compilation-cache.md", "sdk-spec.md", "sdk-spec-user-stories.md",
                   "agents/domain.md", "agents/issue-tracker.md", "agents/triage-labels.md"}
 
 
