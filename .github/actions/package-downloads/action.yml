@@ -1,0 +1,130 @@
+name: Controlled package download cache
+description: Opt-in download-only cache experiment; qualification always builds and tests the candidate.
+inputs:
+  kind:
+    description: swift or xcode resolver
+    required: true
+  mode:
+    description: cold, warm, or invalid (workflow_dispatch only)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Identify compatible download state
+      id: identity
+      shell: bash
+      env:
+        CACHE_KIND: ${{ inputs.kind }}
+        CACHE_MODE: ${{ inputs.mode }}
+      run: |
+        set -euo pipefail
+        [[ "$CACHE_MODE" == cold || "$CACHE_MODE" == warm || "$CACHE_MODE" == invalid ]]
+        mkdir -p .test-results/package-cache
+        python3 Scripts/ci-package-cache.py identity --kind "$CACHE_KIND" > ".test-results/package-cache/$CACHE_KIND-identity.json"
+        key=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["key"])' ".test-results/package-cache/$CACHE_KIND-identity.json")
+        if [[ "$CACHE_KIND" == xcode ]]; then
+          cache_root="$RUNNER_TEMP/xcode-package-cache"
+          scratch="$RUNNER_TEMP/xcode-package-checkouts"
+          echo "CI_XCODE_PACKAGE_CACHE=$cache_root" >> "$GITHUB_ENV"
+          echo "CI_XCODE_PACKAGE_CLONES=$scratch" >> "$GITHUB_ENV"
+        elif [[ "$RUNNER_OS" == macOS ]]; then
+          cache_root="$HOME/Library/Caches/org.swift.swiftpm"
+          scratch="$RUNNER_TEMP/swift-package-resolution"
+        else
+          cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/org.swift.swiftpm"
+          scratch="$RUNNER_TEMP/swift-package-resolution"
+        fi
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+        echo "root=$cache_root" >> "$GITHUB_OUTPUT"
+        echo "scratch=$scratch" >> "$GITHUB_OUTPUT"
+        # Start without resolved working copies or preinstalled repository state.
+        rm -rf "$scratch" "$cache_root/repositories"
+        echo "restore_start=$(date +%s)" >> "$GITHUB_OUTPUT"
+    - name: Restore compatible package downloads
+      id: restore
+      if: inputs.mode != 'cold'
+      uses: actions/cache/restore@v5
+      with:
+        path: ${{ steps.identity.outputs.root }}/repositories
+        # The only fallback retains EVERY compatibility dimension. Unique suffixes
+        # allow a repaired cache to supersede an immutable unusable entry.
+        key: ${{ steps.identity.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: ${{ steps.identity.outputs.key }}-
+    - name: Record restore duration
+      id: restored
+      shell: bash
+      env:
+        RESTORE_START: ${{ steps.identity.outputs.restore_start }}
+      run: echo "seconds=$(( $(date +%s) - RESTORE_START ))" >> "$GITHUB_OUTPUT"
+    - name: Inject unusable repository downloads for controlled validation
+      if: inputs.mode == 'invalid'
+      shell: bash
+      env:
+        CACHE_ROOT: ${{ steps.identity.outputs.root }}
+        MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+      run: |
+        set -euo pipefail
+        test -n "$MATCHED_KEY"
+        python3 - <<'PY'
+        import os
+        from pathlib import Path
+        import shutil
+        repositories = Path(os.environ['CACHE_ROOT']) / 'repositories'
+        objects = list(repositories.glob('*/objects'))
+        if not objects:
+            raise SystemExit('No downloaded Git objects to invalidate; validation not exercised.')
+        for path in objects:
+            shutil.rmtree(path)
+        print(f'Invalidated Git objects in {len(objects)} downloaded repositories.')
+        PY
+    - name: Resolve locked packages with bounded clean fallback
+      id: resolve
+      shell: bash
+      env:
+        CACHE_KIND: ${{ inputs.kind }}
+        CACHE_ROOT: ${{ steps.identity.outputs.root }}
+        CACHE_SCRATCH: ${{ steps.identity.outputs.scratch }}
+      run: |
+        set -euo pipefail
+        python3 Scripts/ci-package-cache.py resolve --kind "$CACHE_KIND" \
+          --cache-root "$CACHE_ROOT" --scratch "$CACHE_SCRATCH" \
+          2>&1 | tee ".test-results/package-cache/$CACHE_KIND-resolution.txt"
+        git diff --exit-code -- Package.swift Package.resolved
+        echo "save_start=$(date +%s)" >> "$GITHUB_OUTPUT"
+    - name: Save resolved package downloads
+      id: save
+      if: steps.restore.outputs.cache-matched-key == '' || steps.resolve.outputs.recovered == 'true' || inputs.mode == 'invalid'
+      uses: actions/cache/save@v5
+      with:
+        path: ${{ steps.identity.outputs.root }}/repositories
+        key: ${{ steps.identity.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+    - name: Record download experiment
+      if: always()
+      shell: bash
+      env:
+        CACHE_KIND: ${{ inputs.kind }}
+        CACHE_MODE: ${{ inputs.mode }}
+        MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
+        RECOVERED: ${{ steps.resolve.outputs.recovered }}
+        SAVE_OUTCOME: ${{ steps.save.outcome }}
+        RESTORE_SECONDS: ${{ steps.restored.outputs.seconds }}
+        SAVE_START: ${{ steps.resolve.outputs.save_start }}
+      run: |
+        mkdir -p .test-results/package-cache
+        {
+          echo "Candidate: $(git rev-parse HEAD)"
+          echo "Resolver: $CACHE_KIND; mode: $CACHE_MODE"
+          echo "Matched cache: ${MATCHED_KEY:-none}; clean retry: ${RECOVERED:-unknown}; save: $SAVE_OUTCOME"
+          if [[ "$CACHE_MODE" == cold ]]; then
+            echo 'Restore: skipped (controlled cold run)'
+          else
+            echo "Restore wall envelope: ${RESTORE_SECONDS:-unknown} seconds"
+          fi
+          if [[ "$SAVE_OUTCOME" == success && -n "$SAVE_START" ]]; then
+            echo "Save wall envelope: $(( $(date +%s) - SAVE_START )) seconds"
+          else
+            echo "Save wall envelope: unavailable ($SAVE_OUTCOME)"
+          fi
+          echo 'Transfer envelopes include step scheduling overhead; use Actions step timestamps for exact step costs.'
+          echo 'No performance benefit established. Use ci-timing.py on completed runs for restore/save cost, required-check wait and runner minutes.'
+        } | tee ".test-results/package-cache/$CACHE_KIND-summary.txt" >> "$GITHUB_STEP_SUMMARY"

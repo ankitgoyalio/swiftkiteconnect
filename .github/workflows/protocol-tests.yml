@@ -4,6 +4,12 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      package_cache:
+        description: 'Download cache experiment (off until hosted benefit is measured)'
+        type: choice
+        default: 'off'
+        options: ['off', 'cold', 'warm', 'invalid']
 concurrency:
   group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -41,6 +47,12 @@ jobs:
         run: |
           swift --version
           cat /etc/os-release
+      - name: Controlled swift package download cache
+        if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
+        uses: ./.github/actions/package-downloads
+        with:
+          kind: swift
+          mode: ${{ inputs.package_cache }}
       - name: Ubuntu qualification (protocol, examples and real transports)
         shell: bash
         run: |
@@ -113,6 +125,18 @@ jobs:
           echo "$compiler_version"
           [[ "$compiler_version" == *"Swift version 6.4"* ]]
           xcrun swift package dump-package > /dev/null
+      - name: Controlled swift package download cache
+        if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
+        uses: ./.github/actions/package-downloads
+        with:
+          kind: swift
+          mode: ${{ inputs.package_cache }}
+      - name: Controlled xcode package download cache
+        if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
+        uses: ./.github/actions/package-downloads
+        with:
+          kind: xcode
+          mode: ${{ inputs.package_cache }}
       - name: Documentation integrity and offline Publisher examples
         run: |
           python3 Scripts/check-documentation.py
@@ -210,6 +234,12 @@ jobs:
           swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
           xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
           swift package dump-package > .test-results/minimum-apple-package.json
+      - name: Controlled swift package download cache
+        if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
+        uses: ./.github/actions/package-downloads
+        with:
+          kind: swift
+          mode: ${{ inputs.package_cache }}
       - name: Build macOS 15 tests
         timeout-minutes: 15
         shell: bash
@@ -303,6 +333,12 @@ jobs:
             xcrun simctl list devices available
           } 2>&1 | tee .test-results/minimum-ios-environment.txt
           xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+      - name: Controlled xcode package download cache
+        if: github.event_name == 'workflow_dispatch' && inputs.package_cache != 'off'
+        uses: ./.github/actions/package-downloads
+        with:
+          kind: xcode
+          mode: ${{ inputs.package_cache }}
       - name: iOS 18 public protocol and real transport tests
         timeout-minutes: 25
         shell: bash
