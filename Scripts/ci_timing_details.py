@@ -4,11 +4,19 @@ import zipfile
 
 
 CATEGORIES = ('build', 'test', 'documentation', 'provisioning', 'artifact',
-              'mixed_qualification', 'other')
+              'mixed_qualification', 'cache_restore', 'cache_save', 'cache', 'other')
 
 
 def category(name):
     name = name.lower()
+    if 'cache/restore@' in name or ('restore' in name and
+            any(word in name for word in ('cache', 'compilation', 'package downloads'))):
+        return 'cache_restore'
+    if 'cache/save@' in name or ('save' in name and
+            any(word in name for word in ('cache', 'compilation', 'package downloads'))):
+        return 'cache_save'
+    if any(word in name for word in ('actions/package-downloads', 'actions/compilation-cache')):
+        return 'cache'
     if any(word in name for word in ('upload-artifact', 'download-artifact', 'pages artifact')):
         return 'artifact'
     if any(word in name for word in ('runtime', 'free space', 'setup-swift', 'toolchain',
@@ -16,7 +24,7 @@ def category(name):
         return 'provisioning'
     if any(word in name for word in ('documentation', 'docc', 'publisher')):
         return 'documentation'
-    if 'ubuntu qualification' in name:
+    if 'ubuntu qualification' in name or (name.startswith('ios ') and 'tests' in name):
         return 'mixed_qualification'
     if 'build' in name:
         return 'build'

@@ -124,6 +124,17 @@ class PublicationWorkflow(unittest.TestCase):
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0]['with']['path'], '.build/documentation/docc-validation.tar')
 
+    def test_superseded_pr_attempts_cancel_only_the_same_pr_group(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        concurrency = json.loads(result.stdout)['concurrency']
+        self.assertTrue(concurrency['cancel-in-progress'])
+        self.assertEqual(concurrency['group'],
+                         'protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}')
+
     def test_pinned_formatter_and_base_check_block_apple_job(self):
         result = subprocess.run([
             'ruby', '-rjson', '-ryaml', '-e',

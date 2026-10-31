@@ -58,6 +58,9 @@ def measure(run, jobs, workflow, logs=None):
         ends = [timestamp(indexed.get(dep, {}).get('completed_at')) for dep in needs]
         ready = max(ends) if ends and all(ends) else (None if needs else created)
         start, end = timestamp(job.get('started_at')), timestamp(job.get('completed_at'))
+        # Queued jobs can expose a placeholder started_at before dispatch.
+        if job.get('status') not in ('in_progress', 'completed'):
+            start = None
         measured[name] = dict(conclusion=job.get('conclusion'),
                               queue_seconds=seconds(ready, start),
                               dependency_wait_seconds=seconds(created, ready),
@@ -118,15 +121,17 @@ def summary(report):
     for name, job in report['jobs'].items():
         lines.append(f"| {name} | {show(job['dependency_wait_seconds'])} | {show(job['queue_seconds'])} | "
                      f"{show(job['execution_seconds'])} | {job['conclusion']} |")
-    lines.extend(['', '| Job | Build s | Test s | Docs s | Provisioning s | Artifact s | Mixed s |',
-                  '| --- | ---: | ---: | ---: | ---: | ---: | ---: |'])
+    lines.extend(['', '| Job | Build s | Test s | Docs s | Provisioning s | Artifact s | Mixed s | Cache restore s | Cache save s | Cache envelope s |',
+                  '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |'])
     for name, job in report['jobs'].items():
         values = [show(job['costs_seconds'][key]) for key in
-                  ('build', 'test', 'documentation', 'provisioning', 'artifact', 'mixed_qualification')]
+                  ('build', 'test', 'documentation', 'provisioning', 'artifact', 'mixed_qualification',
+                   'cache_restore', 'cache_save', 'cache')]
         lines.append('| ' + name + ' | ' + ' | '.join(values) + ' |')
     lines += ['', 'Costs are step envelopes, not isolated compiler/test CPU time. Ubuntu qualification and iOS test '
               'steps include builds; absent/incomplete categories are unavailable. Job overhead and other steps '
-              'remain in raw measurements. Queue is dispatch latency after the latest dependency completes, '
+              'remain in raw measurements. Cache envelopes combine composite action work when separate transfer '
+              'timestamps are unavailable; do not interpret them as isolated restore/save times. Queue is dispatch latency after the latest dependency completes, '
               'including scheduler overhead. Overlapping jobs are never summed as elapsed wait.',
               'Environment, tested checkout revisions, image versions and missing observations: `measurement.json`; '
               'source evidence: `run.json`, `jobs.json`, `workflow.yml`, `logs.zip`, `artifacts.json`.',

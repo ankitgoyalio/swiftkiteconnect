@@ -124,6 +124,46 @@ class TimingCLI(unittest.TestCase):
         self.assertIsNone(apple['environment']['sdk'])
         self.assertIn('sdk', apple['unavailable'])
 
+    def test_cache_transfer_costs_are_separate_from_build_and_artifact_costs(self):
+        jobs = self.successful_jobs()
+        jobs[0]['steps'] = [
+            dict(name=name, conclusion='success',
+                 started_at='2026-10-30T00:01:00Z',
+                 completed_at='2026-10-30T00:02:00Z')
+            for name in ('Restore compatible compilation outputs',
+                         'Save qualified compilation products',
+                         'Run ./.github/actions/package-downloads')]
+        report = self.report(jobs)
+        costs = report['jobs']['apple']['costs_seconds']
+        self.assertEqual(costs.get('cache_restore'), 60)
+        self.assertEqual(costs.get('cache_save'), 60)
+        # Composite action metadata exposes an envelope, not separate transfers.
+        self.assertEqual(costs.get('cache'), 60)
+        self.assertIsNone(costs['artifact'])
+        self.assertIn('Cache restore s', report['_summary'])
+        self.assertIn('Cache save s', report['_summary'])
+        self.assertIn('Cache envelope s', report['_summary'])
+
+    def test_ios_commands_that_compile_are_not_reported_as_isolated_test_cost(self):
+        jobs = self.successful_jobs()
+        jobs[0]['steps'] = [
+            dict(name=name, conclusion='success',
+                 started_at='2026-10-30T00:01:00Z',
+                 completed_at='2026-10-30T00:02:00Z')
+            for name in ('iOS Simulator public protocol and real loopback HTTP tests',
+                         'iOS 18 public protocol and real transport tests')]
+        costs = self.report(jobs)['jobs']['apple']['costs_seconds']
+        self.assertEqual(costs['mixed_qualification'], 120)
+        self.assertIsNone(costs['test'])
+
+    def test_queued_job_placeholder_start_does_not_report_dispatch_latency(self):
+        jobs = self.successful_jobs()
+        jobs[0].update(status='queued', conclusion=None, completed_at=None)
+        report = self.report(jobs, status='queued', conclusion=None)
+        self.assertIsNone(report['jobs']['apple']['queue_seconds'])
+        self.assertIsNone(report['jobs']['apple']['execution_seconds'])
+        self.assertFalse(report['qualified'])
+
     def test_summary_is_compact_and_marks_unknown_environment(self):
         report = self.report(self.successful_jobs())
         self.assertIn('Required-check wait: 720', report['_summary'])
