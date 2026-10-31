@@ -13,6 +13,40 @@ import time
 from pathlib import Path
 
 
+# Swift 6.4 defaults to Swift Build. Keep this allowlist shared by restore/save;
+# never include the whole scratch directory (which also contains downloads).
+CACHE_PATHS = ('.build/out/Products/Debug', '.build/out/Intermediates.noindex',
+               '.build/out/ModuleCache.noindex')
+BUILD_DATABASE = Path('.build/out/Intermediates.noindex/XCBuildData/build.db')
+
+
+def validate():
+    def nonempty_file(path):
+        return path.is_file() and path.stat().st_size > 0
+
+    missing = [name for name in CACHE_PATHS
+               if not Path(name).is_dir() or not any(
+                   nonempty_file(path) for path in Path(name).rglob('*'))]
+    if not nonempty_file(BUILD_DATABASE):
+        missing.append(str(BUILD_DATABASE))
+    bundles = list(Path(CACHE_PATHS[0]).glob('*.xctest'))
+    if not any(any(nonempty_file(path) for path in bundle.rglob('*')) for bundle in bundles):
+        missing.append(f'{CACHE_PATHS[0]}/*.xctest (nonempty test bundle)')
+    if missing:
+        raise ValueError('Compilation cache outputs missing or empty: ' + ', '.join(missing))
+    return {'state': 'validated-for-save', 'paths': list(CACHE_PATHS),
+            'database': str(BUILD_DATABASE),
+            'bytes': sum(path.stat().st_size for name in CACHE_PATHS
+                         for path in Path(name).rglob('*') if path.is_file())}
+
+
+def invalidate():
+    if not BUILD_DATABASE.is_file() or BUILD_DATABASE.stat().st_size == 0:
+        raise ValueError(f'Compilation cache outputs missing or empty: {BUILD_DATABASE}')
+    BUILD_DATABASE.write_text('deliberately unusable SQLite state')
+    print(f'Deliberately corrupted {BUILD_DATABASE}')
+
+
 def probe(token):
     if not token or not all(character.isalnum() or character in '-_.' for character in token):
         raise ValueError('Probe token must contain only letters, numbers, dot, dash or underscore')
@@ -146,13 +180,20 @@ def compare():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['probe', 'build', 'identity', 'compare-results', 'compare'])
+    parser.add_argument('operation', choices=[
+        'probe', 'build', 'identity', 'compare-results', 'compare', 'paths', 'validate', 'invalidate'])
     parser.add_argument('--token')
     parser.add_argument('--restored', action='store_true')
     parser.add_argument('--cached', type=Path)
     parser.add_argument('--clean', type=Path)
     args = parser.parse_args()
-    if args.operation == 'probe':
+    if args.operation == 'paths':
+        print('\n'.join(CACHE_PATHS))
+    elif args.operation == 'validate':
+        print(json.dumps(validate(), indent=2))
+    elif args.operation == 'invalidate':
+        invalidate()
+    elif args.operation == 'probe':
         probe(args.token)
     elif args.operation == 'identity':
         identity()

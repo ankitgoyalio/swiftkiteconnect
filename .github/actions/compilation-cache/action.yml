@@ -10,6 +10,8 @@ inputs:
 outputs:
   key:
     value: ${{ steps.identity.outputs.key }}
+  paths:
+    value: ${{ steps.identity.outputs.paths }}
   matched:
     value: ${{ steps.restore.outputs.cache-matched-key }}
 runs:
@@ -30,6 +32,11 @@ runs:
         python3 Scripts/ci-compilation-cache.py identity > .test-results/compilation-cache/identity.json
         key=$(python3 -c 'import json; print(json.load(open(".test-results/compilation-cache/identity.json"))["key"])')
         echo "key=$key" >> "$GITHUB_OUTPUT"
+        {
+          echo 'paths<<COMPILATION_PATHS'
+          python3 Scripts/ci-compilation-cache.py paths
+          echo COMPILATION_PATHS
+        } >> "$GITHUB_OUTPUT"
         # Fresh hosted scratch only. Download cache and evidence live elsewhere.
         rm -rf .build
         echo "Compilation pilot mode: $MODE; candidate: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
@@ -40,10 +47,7 @@ runs:
       with:
         # Only build products and incremental planning databases. No test logs,
         # result bundles, conclusions, runtime artifacts, or qualification evidence.
-        path: |
-          .build/*/debug
-          .build/build.db
-          .build/debug.yaml
+        path: ${{ steps.identity.outputs.paths }}
         key: ${{ steps.identity.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
         restore-keys: ${{ steps.identity.outputs.key }}-
     - name: Prepare observable candidate source
@@ -61,8 +65,7 @@ runs:
         if [[ "$MODE" == compare ]]; then token="edited-$(git rev-parse HEAD)-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"; fi
         python3 Scripts/ci-compilation-cache.py probe --token "$token" | tee .test-results/compilation-cache/probe.json
         if [[ "$MODE" == invalid ]]; then
-          test -f .build/build.db
-          printf 'deliberately unusable SQLite state' > .build/build.db
+          python3 Scripts/ci-compilation-cache.py invalidate
         fi
         echo 'Compilation caching remains default off. Inspect fresh candidate logs and comparison.json; no saved conclusion qualifies this run.' >> "$GITHUB_STEP_SUMMARY"
         echo 'Use ci-timing.py for total required-check wait, restore/save costs and runner minutes. storage-kib.txt measures scratch, not compressed transfer. No benefit established by configuration.' >> "$GITHUB_STEP_SUMMARY"

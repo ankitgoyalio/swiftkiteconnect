@@ -253,15 +253,17 @@ jobs:
         run: python3 Scripts/ci-compilation-cache.py compare
       - name: Record compilation storage before transfer
         if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache != 'off'
-        run: du -sk .build | tee .test-results/compilation-cache/storage-kib.txt
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Scripts/ci-compilation-cache.py validate | tee .test-results/compilation-cache/outputs.json
+          du -sk .build/out | tee .test-results/compilation-cache/storage-kib.txt
+          echo 'Compilation outputs validated for save; upload and later reuse require cache action evidence.' >> "$GITHUB_STEP_SUMMARY"
       - name: Save qualified compilation products
         if: github.event_name == 'workflow_dispatch' && inputs.compilation_cache != 'off'
         uses: actions/cache/save@v5
         with:
-          path: |
-            .build/*/debug
-            .build/build.db
-            .build/debug.yaml
+          path: ${{ steps.compilation.outputs.paths }}
           key: ${{ steps.compilation.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
       - uses: actions/upload-artifact@v7
         if: always()

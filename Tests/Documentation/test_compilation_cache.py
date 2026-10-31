@@ -16,6 +16,79 @@ class CompilationCache(unittest.TestCase):
         return subprocess.run(['python3', str(SCRIPT), *args], cwd=cwd,
                               env=env, capture_output=True, text=True)
 
+    def test_paths_select_observed_swift_build_outputs_without_downloads_or_evidence(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # Swift 6.4.0 hosted run 41199125525 uses Swift Build, not native debug.
+            for name in (
+                    '.build/out/Products/Debug/KiteConnectPackageTests.xctest/Contents/MacOS/tests',
+                    '.build/out/Intermediates.noindex/XCBuildData/build.db',
+                    '.build/out/ModuleCache.noindex/Swift.swiftmodule',
+                    '.build/checkouts/dependency/source.swift',
+                    '.build/repositories/download', '.test-results/suite.txt',
+                    '.swiftpm/security/credentials'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('fixture')
+            result = self.run_cli('paths', cwd=root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            paths = result.stdout.splitlines()
+            self.assertEqual(paths, ['.build/out/Products/Debug',
+                                     '.build/out/Intermediates.noindex',
+                                     '.build/out/ModuleCache.noindex'])
+            selected = {str(p.relative_to(root)) for name in paths
+                        for p in (root / name).rglob('*') if p.is_file()}
+            self.assertEqual(selected, {
+                '.build/out/Products/Debug/KiteConnectPackageTests.xctest/Contents/MacOS/tests',
+                '.build/out/Intermediates.noindex/XCBuildData/build.db',
+                '.build/out/ModuleCache.noindex/Swift.swiftmodule'})
+
+    def test_validation_fails_explicitly_until_compilation_outputs_are_present(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            # An absent scratch tree, old native layout, empty directories, and
+            # a partial Swift Build tree must never be reported ready for save.
+            for name in ('.build/arm64-apple-macosx/debug/test',
+                         '.build/build.db', '.build/debug.yaml'):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text('old layout')
+            database = root / '.build/out/Intermediates.noindex/XCBuildData/build.db'
+            module = root / '.build/out/ModuleCache.noindex/Swift.swiftmodule'
+            executable = root / '.build/out/Products/Debug/LayoutTests.xctest/Contents/MacOS/LayoutTests'
+            for path in (database, module, executable):
+                result = self.run_cli('validate', cwd=root)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn('Compilation cache outputs missing or empty', result.stderr)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.touch()
+                result = self.run_cli('validate', cwd=root)
+                self.assertNotEqual(result.returncode, 0)
+                path.write_text('actual output')
+            result = self.run_cli('validate', cwd=root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report = json.loads(result.stdout)
+            self.assertEqual(report['state'], 'validated-for-save')
+            self.assertEqual(report['database'], '.build/out/Intermediates.noindex/XCBuildData/build.db')
+            self.assertEqual(set(report['paths']), {'.build/out/Products/Debug',
+                                                  '.build/out/Intermediates.noindex',
+                                                  '.build/out/ModuleCache.noindex'})
+            self.assertGreater(report['bytes'], 0)
+
+    def test_invalid_experiment_corrupts_actual_swift_build_database_and_requires_it(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = self.run_cli('invalidate', cwd=root)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn('Compilation cache outputs missing or empty', result.stderr)
+            database = root / '.build/out/Intermediates.noindex/XCBuildData/build.db'
+            database.parent.mkdir(parents=True)
+            database.write_bytes(b'SQLite format 3\0fixture')
+            result = self.run_cli('invalidate', cwd=root)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(database.read_text(), 'deliberately unusable SQLite state')
+            self.assertFalse((root / '.build/build.db').exists())
+
     def test_minimum_build_step_handles_cold_warm_and_cache_off_under_system_bash(self):
         result = subprocess.run(['ruby', '-rjson', '-ryaml', '-e',
                                  'puts JSON.generate(YAML.load_file(ARGV[0]))',
@@ -176,6 +249,15 @@ sys.exit(int(os.environ.get('BUILD_STATUS', '0')))
         restore = next(step for step in json.loads(action.stdout)['runs']['steps']
                        if step.get('uses') == 'actions/cache/restore@v5')
         self.assertNotIn('.test-results', restore['with']['path'])
+        self.assertEqual(restore['with']['path'], '${{ steps.identity.outputs.paths }}')
+        save = next(step for step in steps if step.get('uses') == 'actions/cache/save@v5')
+        self.assertEqual(save['with']['path'], '${{ steps.compilation.outputs.paths }}')
+        validation = next(step for step in steps
+                          if step.get('name') == 'Record compilation storage before transfer')
+        self.assertLess(steps.index(validation), steps.index(save))
+        self.assertIn('set -euo pipefail', validation['run'])
+        self.assertIn('ci-compilation-cache.py validate', validation['run'])
+        self.assertFalse(validation.get('continue-on-error', False))
         self.assertIn('steps.identity.outputs.key', restore['with']['restore-keys'])
 
     def test_comparison_requires_matching_executed_tests_and_observed_probe(self):
