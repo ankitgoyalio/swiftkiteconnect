@@ -100,22 +100,95 @@ The required `minimum-apple` job in the protocol workflow passes only when both
 `minimum-macos` and `minimum-ios` succeed. The macOS job uses GitHub's `macos-15`
 image, Xcode 16.4, and standalone Swift 6.4.0. Xcode 16.4's embedded package
 resolver cannot load a tools-version 6.4 manifest, so iOS tests use Xcode 27.1
-on `xcode-27`. The macOS job exports the iOS 18.5 runtime for the iOS job to
-import and explicitly test with an iPhone 16 simulator. The iOS job removes
+on `xcode-27`. The independent `ios18-runtime` job uses Xcode 16.4 on
+`macos-15` to export the iOS 18.5 runtime while minimum macOS tests run.
+Minimum iOS waits only for that runtime job, then explicitly tests with an
+iPhone 16 simulator. The iOS job removes
 preinstalled runtimes from its fresh hosted runner before downloading the older
 image to leave room for import and testing.
 
 The jobs fail if the OS, compiler, runtime, build, or tests are unavailable or
 incompatible. The `minimum-macos-test-results` and `minimum-ios-test-results`
 artifacts retain the candidate SHA, environment inventory, logs, and iOS result
-bundle. The intermediate `ios18-runtime` artifact expires after one day. These
-checks qualify the macOS 15 and iOS 18 families at the recorded patch versions,
+bundle. The intermediate `ios18-runtime` artifact expires after one day.
+The consumer selects its immutable artifact ID from the same workflow run.
+[Runtime transfer verification](../Scripts/runtime-artifact.py) checks the image
+SHA-256, repository, run ID, attempt, candidate SHA, exporter architecture, and
+explicit iOS 18.5 identity before import. After import, the installed runtime
+build must match the export inventory. Both jobs retain the manifest, runtime
+inventory, and storage diagnostics; `ios18-runtime-results` also retains export
+logs. A missing or mismatched artifact blocks iOS qualification and the
+`minimum-apple` gate. These checks qualify the macOS 15 and iOS 18 families at the recorded patch versions,
 not specifically macOS 15.0 or iOS 18.0.
 
 Before release, require a successful `minimum-apple` run for the candidate and
 record its evidence in Verification.md. The newer-runtime `apple` job and the
 `ubuntu` job also remain required. Workflow configuration alone does not claim
 successful qualification.
+
+## Compare required-check completion time
+
+Use [the timing collector](../Scripts/ci-timing.py) with authenticated `gh`,
+Python 3 and Ruby. Collect each completed Protocol tests run into a new directory:
+
+```fish
+python3 Scripts/ci-timing.py --run-id 41013409795
+python3 Scripts/ci-timing.py --replay .test-results/ci-timing/41013409795-attempt-1
+```
+
+The first command prints the evidence directory. The second regenerates
+`measurement.json` and `summary.md` from its retained inputs without API access.
+Keep the directory in ignored `.test-results/` or an Actions artifact.
+Collection uses the run's current attempt and retains paginated job metadata,
+logs, artifact metadata and the tested revision's workflow. Check
+`collection-warnings.txt` for missing evidence. If checkout logs are unavailable,
+the workflow snapshot uses the source revision and the tested revision stays unknown.
+
+After this workflow reaches the default branch, [CI timing](../.github/workflows/ci-timing.yml)
+collects each completed Protocol tests run and retains its raw evidence for
+30 days. Its Actions summary links the measurements by filename. You can also
+run CI timing manually with a Protocol tests run ID. The collector executes
+only default-branch code and has read-only permissions. It does not participate
+in qualification or Pages publication.
+
+For each comparison:
+
+1. Select at least three successful runs per condition where feasible. Prefer
+   the same tested revision, event, workflow hash, runner image, architecture,
+   compiler, SDK and runtime. If revisions differ, inspect their changes before
+   grouping them. Record the sample size and every mismatch on the tracking issue.
+2. Group runs by `classification` in `measurement.json` to keep failed, cancelled
+   and incomplete workflows separate. Use `qualified` and
+   `successful_required_wait_seconds` to identify successful required work.
+   Required qualification includes dependencies and is independent of Pages
+   deployment. A failed deployment preserves the successful required-check wait.
+   Inspect `workflow_status` and `workflow_conclusion` for the overall outcome.
+   Missing required timestamps cannot establish a successful duration.
+3. Compare required-check wait from run creation to the last required job's
+   completion. Inspect the completion chain and each job's queue after dependencies,
+   dependency wait and execution. Do not add overlapping execution times as elapsed time.
+4. Compare unweighted runner minutes as a separate cost. `runner_minutes` covers
+   all executed jobs, including deployment. `required_runner_minutes` covers
+   required jobs and their dependencies. Neither value includes billing multipliers
+   or minute rounding. Skipped jobs consume no execution minutes.
+5. Inspect step costs and environment observations in the JSON. Build, test,
+   documentation, provisioning and artifact costs are step durations. Ubuntu and
+   iOS commands combine compilation and tests, so isolated timings are unavailable.
+   Empty categories remain unknown. Compiler observations may include installer
+   preflight output. Runtime inventory can include imported runtimes.
+6. Record cache restore and save costs when comparing later optimizations.
+   For the uncached workflow, describe cold dependency state as an inference from
+   fresh hosted checkouts and absent workflow caches. Record preinstalled compilers
+   and runtimes separately. Do not claim that hosted images contain no other caches.
+7. Retain a compact dated summary and Actions links on the implementation issue.
+   Include the median, range, runner variation and unavailable measurements.
+   Keep raw logs and per-run JSON out of tracked documentation.
+
+## Evaluate minimum macOS compilation caching
+
+Follow the [compilation cache experiment](ci-compilation-cache.md) to compare
+minimum macOS builds with the download-only condition. Keep the experiment off
+until hosted correctness and total-time measurements support enabling it.
 
 ## Review dependency updates
 

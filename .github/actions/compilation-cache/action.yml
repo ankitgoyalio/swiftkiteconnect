@@ -1,0 +1,71 @@
+name: Minimum macOS compilation pilot
+description: Restore compatible build products only; qualification always builds and tests anew.
+inputs:
+  mode:
+    description: cold, warm, invalid, or compare
+    required: true
+  downloads:
+    description: Explicit download cache mode required for comparison with ticket 58
+    required: true
+outputs:
+  key:
+    value: ${{ steps.identity.outputs.key }}
+  paths:
+    value: ${{ steps.identity.outputs.paths }}
+  matched:
+    value: ${{ steps.restore.outputs.cache-matched-key }}
+runs:
+  using: composite
+  steps:
+    - name: Identify minimum macOS compilation state
+      id: identity
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        DOWNLOADS: ${{ inputs.downloads }}
+      run: |
+        set -euo pipefail
+        [[ "$MODE" == cold || "$MODE" == warm || "$MODE" == invalid || "$MODE" == compare ]]
+        [[ "$DOWNLOADS" == cold || "$DOWNLOADS" == warm || "$DOWNLOADS" == invalid ]]
+        [[ "$(sw_vers -productVersion)" == 15.* ]]
+        mkdir -p .test-results/compilation-cache
+        python3 Scripts/ci-compilation-cache.py identity > .test-results/compilation-cache/identity.json
+        key=$(python3 -c 'import json; print(json.load(open(".test-results/compilation-cache/identity.json"))["key"])')
+        echo "key=$key" >> "$GITHUB_OUTPUT"
+        {
+          echo 'paths<<COMPILATION_PATHS'
+          python3 Scripts/ci-compilation-cache.py paths
+          echo COMPILATION_PATHS
+        } >> "$GITHUB_OUTPUT"
+        # Fresh hosted scratch only. Download cache and evidence live elsewhere.
+        rm -rf .build
+        echo "Compilation pilot mode: $MODE; candidate: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+    - name: Restore compatible compilation outputs
+      id: restore
+      if: inputs.mode != 'cold'
+      uses: actions/cache/restore@v5
+      with:
+        # Only build products and incremental planning databases. No test logs,
+        # result bundles, conclusions, runtime artifacts, or qualification evidence.
+        path: ${{ steps.identity.outputs.paths }}
+        key: ${{ steps.identity.outputs.key }}-${{ github.run_id }}-${{ github.run_attempt }}
+        restore-keys: ${{ steps.identity.outputs.key }}-
+    - name: Prepare observable candidate source
+      shell: bash
+      env:
+        MODE: ${{ inputs.mode }}
+        MATCHED: ${{ steps.restore.outputs.cache-matched-key }}
+      run: |
+        set -euo pipefail
+        echo "Matched compilation cache: ${MATCHED:-none}" >> "$GITHUB_STEP_SUMMARY"
+        if [[ "$MODE" == compare || "$MODE" == invalid ]]; then
+          test -n "$MATCHED" # A miss cannot demonstrate edit invalidation or recovery.
+        fi
+        token=baseline
+        if [[ "$MODE" == compare ]]; then token="edited-$(git rev-parse HEAD)-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"; fi
+        python3 Scripts/ci-compilation-cache.py probe --token "$token" | tee .test-results/compilation-cache/probe.json
+        if [[ "$MODE" == invalid ]]; then
+          python3 Scripts/ci-compilation-cache.py invalidate
+        fi
+        echo 'Compilation caching remains default off. Inspect fresh candidate logs and comparison.json; no saved conclusion qualifies this run.' >> "$GITHUB_STEP_SUMMARY"
+        echo 'Use ci-timing.py for total required-check wait, restore/save costs and runner minutes. storage-kib.txt measures scratch, not compressed transfer. No benefit established by configuration.' >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,53 @@
+name: Prepare minimum macOS environment
+description: Verify macOS 15 and select standalone Swift 6.4 with Xcode 16.4.
+runs:
+  using: composite
+  steps:
+    - name: Record minimum OS environment
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p .test-results
+        {
+          git rev-parse HEAD
+          sw_vers
+          uname -m
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
+        } 2>&1 | tee .test-results/minimum-apple-environment.txt
+        [[ "$(sw_vers -productVersion)" == 15.* ]]
+    - uses: swift-actions/setup-swift@v3
+      with:
+        swift-version: '6.4.0'
+    - name: Select standalone Swift toolchain for Xcode
+      shell: bash
+      run: |
+        set -euo pipefail
+        compiler_directory=$(swiftly use --print-location)
+        toolchain_id=$(python3 - "$compiler_directory" <<'PY'
+        from pathlib import Path
+        import plistlib
+        import sys
+        location = Path(sys.argv[1]).resolve()
+        toolchain = next(path for path in (location, *location.parents)
+                         if path.suffix == '.xctoolchain')
+        with (toolchain / 'Info.plist').open('rb') as source:
+            print(plistlib.load(source)['CFBundleIdentifier'])
+        PY
+        )
+        echo "TOOLCHAINS=$toolchain_id" >> "$GITHUB_ENV"
+    - name: Verify Swift 6.4 and package loading
+      shell: bash
+      run: |
+        set -euo pipefail
+        {
+          echo "TOOLCHAINS=$TOOLCHAINS"
+          command -v swift
+          swift --version
+          xcrun --find swift
+          xcrun swift --version
+        } 2>&1 | tee .test-results/minimum-apple-toolchain.txt
+        swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+        xcrun swift --version | grep -Eq 'Swift version 6\.4([. ]|$)'
+        swift package dump-package > .test-results/minimum-apple-package.json

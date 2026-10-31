@@ -21,7 +21,13 @@ sys.exit(f"No available iPhone simulator matching runtime={requested_runtime!r},
          f"name={requested_name!r}; install the requested simulator in Xcode.")
 ')
 echo "Testing on simulator $simulator_id (runtime=${IOS_SIMULATOR_RUNTIME:-automatic}, name=${IOS_SIMULATOR_NAME:-automatic})"
-xcodebuild test -scheme KiteConnect \
+set -- test -scheme KiteConnect
+if [[ -n "${CI_XCODE_PACKAGE_CACHE:-}" ]]; then
+  set -- "$@" -packageCachePath "$CI_XCODE_PACKAGE_CACHE" \
+    -clonedSourcePackagesDirPath "$CI_XCODE_PACKAGE_CLONES" \
+    -onlyUsePackageVersionsFromResolvedFile
+fi
+xcodebuild "$@" \
   -destination "platform=iOS Simulator,id=$simulator_id" \
   -parallel-testing-enabled NO \
   -destination-timeout 60 \
