@@ -10,6 +10,39 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PublicationWorkflow(unittest.TestCase):
+    def test_apple_gate_requires_platform_and_documentation_success(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        jobs = json.loads(result.stdout)['jobs']
+        gate = jobs['apple']
+        self.assertEqual(set(gate['needs']), {'apple-platform', 'docc'})
+        self.assertEqual(gate['if'], 'always()')
+        self.assertFalse(gate.get('continue-on-error', False))
+        check = gate['steps'][0]
+        self.assertEqual(check['env'], {
+            'PLATFORM_RESULT': '${{ needs.apple-platform.result }}',
+            'DOCC_RESULT': '${{ needs.docc.result }}',
+        })
+        # Empty is how an absent dependency result is exposed to the shell.
+        for platform, docc in itertools.product(
+                ('success', 'failure', 'cancelled', 'skipped', ''), repeat=2):
+            result = subprocess.run(
+                ['bash', '-c', check['run']],
+                env=dict(os.environ, PLATFORM_RESULT=platform, DOCC_RESULT=docc),
+                capture_output=True, text=True)
+            self.assertEqual(result.returncode == 0,
+                             platform == docc == 'success', (platform, docc))
+        for name in ('apple-platform', 'docc'):
+            self.assertNotIn('needs', jobs[name])
+            self.assertNotIn('if', jobs[name])
+            self.assertNotIn('permissions', jobs[name])
+            self.assertFalse(jobs[name].get('continue-on-error', False))
+            for step in jobs[name]['steps']:
+                self.assertFalse(step.get('continue-on-error', False))
+
     def test_minimum_gate_fails_if_either_suite_does_not_succeed(self):
         result = subprocess.run([
             'ruby', '-rjson', '-ryaml', '-e',
@@ -25,7 +58,7 @@ class PublicationWorkflow(unittest.TestCase):
             'IOS_RESULT': '${{ needs.minimum-ios.result }}',
         })
         for macos, ios in itertools.product(
-                ('success', 'failure', 'cancelled', 'skipped'), repeat=2):
+                ('success', 'failure', 'cancelled', 'skipped', ''), repeat=2):
             result = subprocess.run(
                 ['bash', '-c', gate['run']],
                 env=dict(os.environ, MACOS_RESULT=macos, IOS_RESULT=ios),
@@ -43,7 +76,7 @@ class PublicationWorkflow(unittest.TestCase):
         jobs = workflow['jobs']
         self.assertIn('deploy', jobs)
         deploy = jobs['deploy']
-        self.assertEqual(set(deploy['needs']), {'apple', 'ubuntu'})
+        self.assertEqual(set(deploy['needs']), {'apple', 'ubuntu', 'minimum-apple'})
         self.assertEqual(workflow['permissions'], {'contents': 'read'})
         self.assertEqual(deploy['permissions'], {'pages': 'write', 'id-token': 'write'})
         for name in ('apple', 'ubuntu'):
@@ -52,31 +85,41 @@ class PublicationWorkflow(unittest.TestCase):
         # Evaluate the actual declarative condition for events, refs and job
         # outcomes, including skipped/cancelled jobs. Unknown syntax fails.
         condition = ' '.join(deploy['if'].removeprefix('${{').removesuffix('}}').split())
-        for event, ref, apple, ubuntu in itertools.product(
+        for event, ref, apple, ubuntu, minimum in itertools.product(
                 ('push', 'pull_request', 'workflow_dispatch'),
                 ('refs/heads/main', 'refs/heads/integration/docc-30'),
-                ('success', 'failure', 'cancelled', 'skipped'),
-                ('success', 'failure', 'cancelled', 'skipped')):
+                ('success', 'failure', 'cancelled', 'skipped', ''),
+                ('success', 'failure', 'cancelled', 'skipped', ''),
+                ('success', 'failure', 'cancelled', 'skipped', '')):
             expression = condition
             for key, value in {
                 'github.event_name': event, 'github.ref': ref,
                 'needs.apple.result': apple, 'needs.ubuntu.result': ubuntu,
+                'needs.minimum-apple.result': minimum,
             }.items():
                 expression = expression.replace(key, repr(value))
             expression = expression.replace('&&', ' and ').replace('||', ' or ')
             allowed = eval(expression, {'__builtins__': {}}, {})
             expected = (event == 'push' and ref == 'refs/heads/main'
-                        and apple == 'success' and ubuntu == 'success')
-            self.assertEqual(allowed, expected, (event, ref, apple, ubuntu))
+                        and apple == ubuntu == minimum == 'success')
+            self.assertEqual(allowed, expected, (event, ref, apple, ubuntu, minimum))
         self.assertEqual(deploy['environment']['name'], 'github-pages')
         self.assertFalse(deploy.get('continue-on-error', False))
         publish = [step for step in deploy['steps'] if 'deploy-pages@' in step.get('uses', '')]
         self.assertEqual(len(publish), 1)
-        uploads = [step for step in jobs['apple']['steps']
+        uploads = [step for step in jobs['docc']['steps']
                    if 'upload-pages-artifact@' in step.get('uses', '')]
         self.assertEqual(len(uploads), 1)
         self.assertEqual(uploads[0]['with']['path'], '.build/documentation/site')
-        artifacts = [step for step in jobs['apple']['steps']
+        package_condition = uploads[0]['if']
+        for event, ref in itertools.product(
+                ('push', 'pull_request', 'workflow_dispatch'),
+                ('refs/heads/main', 'refs/heads/integration/spec-55')):
+            expression = package_condition.replace('github.event_name', repr(event))
+            expression = expression.replace('github.ref', repr(ref)).replace('&&', ' and ')
+            self.assertEqual(eval(expression, {'__builtins__': {}}, {}),
+                             event == 'push' and ref == 'refs/heads/main')
+        artifacts = [step for step in jobs['docc']['steps']
                      if step.get('with', {}).get('name') == 'docc-site']
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0]['with']['path'], '.build/documentation/docc-validation.tar')
@@ -87,7 +130,7 @@ class PublicationWorkflow(unittest.TestCase):
             'puts JSON.generate(YAML.load_file(ARGV[0]))',
             str(ROOT / '.github/workflows/protocol-tests.yml')],
             check=True, capture_output=True, text=True)
-        apple = json.loads(result.stdout)['jobs']['apple']['steps']
+        apple = json.loads(result.stdout)['jobs']['apple-platform']['steps']
         install = next(step for step in apple if step.get('name') == 'Install pinned SwiftFormat')
         enforce = next(step for step in apple if step.get('name') == 'Enforce authored changes with commit checks')
         pin = (ROOT / '.githooks/check_swift_format.py').read_text().split('SWIFTFORMAT_VERSION = "')[1].split('"')[0]
