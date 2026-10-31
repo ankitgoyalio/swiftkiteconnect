@@ -61,7 +61,33 @@ class TimingCLI(unittest.TestCase):
         self.assertEqual(report['jobs']['minimum-ios']['dependency_wait_seconds'], 360)
         self.assertEqual(report['jobs']['minimum-ios']['execution_seconds'], 180)
 
-    def test_failed_and_cancelled_runs_are_diagnostics_not_success_baselines(self):
+    def test_failed_pages_deploy_preserves_successful_required_check_wait(self):
+        jobs = self.successful_jobs() + [job('deploy', '13', '14', 'failure')]
+        report = self.report(jobs, conclusion='failure')
+        self.assertTrue(report['qualified'])
+        self.assertEqual(report['successful_required_wait_seconds'], 720)
+        self.assertEqual(report['classification'], 'failure')
+        self.assertEqual(report['runner_minutes'], 16)
+        self.assertEqual(report['required_runner_minutes'], 15)
+
+    def test_required_success_is_independent_of_cancelled_or_incomplete_workflow(self):
+        for status, conclusion, classification in (
+                ('completed', 'cancelled', 'cancelled'),
+                ('in_progress', None, 'incomplete')):
+            with self.subTest(status=status, conclusion=conclusion):
+                jobs = self.successful_jobs() + [dict(
+                    name='deploy', status=status, conclusion=conclusion, steps=[])]
+                report = self.report(jobs, status=status, conclusion=conclusion)
+                self.assertTrue(report['qualified'])
+                self.assertEqual(report['successful_required_wait_seconds'], 720)
+                self.assertEqual(report['classification'], classification)
+                self.assertEqual(report['workflow_status'], status)
+                self.assertEqual(report['workflow_conclusion'], conclusion)
+                self.assertIsNone(report['runner_minutes'])
+                self.assertIn('Required qualification: **success**', report['_summary'])
+                self.assertIn(f'Workflow status: `{status}`', report['_summary'])
+
+    def test_failed_and_cancelled_required_work_cannot_qualify(self):
         for conclusion in ('failure', 'cancelled'):
             jobs = self.successful_jobs()
             jobs[3]['conclusion'] = conclusion

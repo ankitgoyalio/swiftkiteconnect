@@ -142,7 +142,17 @@ class PublicationWorkflow(unittest.TestCase):
             str(ROOT / '.github/workflows/protocol-tests.yml')],
             check=True, capture_output=True, text=True)
         apple = json.loads(result.stdout)['jobs']['apple-platform']['steps']
-        install = next(step for step in apple if step.get('name') == 'Install pinned SwiftFormat')
+        setup = next(step for step in apple
+                     if step.get('uses') == './.github/actions/native-apple-setup')
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/actions/native-apple-setup/action.yml')],
+            check=True, capture_output=True, text=True)
+        action = json.loads(result.stdout)
+        self.assertEqual(action['runs']['using'], 'composite')
+        install = next(step for step in action['runs']['steps']
+                       if step.get('name') == 'Install pinned SwiftFormat')
         enforce = next(step for step in apple if step.get('name') == 'Enforce authored changes with commit checks')
         pin = (ROOT / '.githooks/check_swift_format.py').read_text().split('SWIFTFORMAT_VERSION = "')[1].split('"')[0]
         self.assertIn(f'/download/{pin}/swiftformat.zip', install['run'])
@@ -151,6 +161,64 @@ class PublicationWorkflow(unittest.TestCase):
         self.assertIn('python3 .githooks/pre-commit --base "$base"', enforce['run'])
         self.assertIn('github.event.pull_request.base.sha', enforce['env']['CHECK_BASE'])
         self.assertIn('github.event.before', enforce['env']['CHECK_BASE'])
+        self.assertLess(apple.index(setup), apple.index(enforce))
         self.assertFalse(enforce.get('continue-on-error', False))
         self.assertNotIn('if', enforce)
         self.assertEqual(apple[0]['with']['fetch-depth'], 0)
+
+    def test_shared_native_setup_precedes_caches_and_rejects_toolchain_failures(self):
+        def yaml(path):
+            result = subprocess.run([
+                'ruby', '-rjson', '-ryaml', '-e',
+                'puts JSON.generate(YAML.load_file(ARGV[0]))', str(ROOT / path)],
+                check=True, capture_output=True, text=True)
+            return json.loads(result.stdout)
+
+        workflow = yaml('.github/workflows/protocol-tests.yml')
+        inputs = workflow.get('on', workflow.get('true'))['workflow_dispatch']['inputs']
+        for name in ('package_cache', 'compilation_cache'):
+            self.assertEqual(inputs[name]['default'], 'off')
+        for name in ('apple-platform', 'docc'):
+            steps = workflow['jobs'][name]['steps']
+            setups = [step for step in steps
+                      if step.get('uses') == './.github/actions/native-apple-setup']
+            self.assertEqual(len(setups), 1)
+            setup = setups[0]
+            self.assertNotIn('if', setup)
+            self.assertFalse(setup.get('continue-on-error', False))
+            self.assertLess(0, steps.index(setup))  # Local action needs checkout.
+            for step in steps:
+                if step.get('uses') == './.github/actions/package-downloads':
+                    self.assertLess(steps.index(setup), steps.index(step))
+
+        action = yaml('.github/actions/native-apple-setup/action.yml')
+        for step in action['runs']['steps']:
+            self.assertEqual(step['shell'], 'bash')
+            self.assertNotIn('if', step)
+            self.assertFalse(step.get('continue-on-error', False))
+        verify = next(step for step in action['runs']['steps']
+                      if step.get('name') == 'Verify native Xcode and Swift toolchain')
+        # Replace only external commands; execute the action's actual shell.
+        import tempfile
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)
+            (path / 'xcodebuild').write_text('#!/bin/sh\nexit "$XCODE_STATUS"\n')
+            (path / 'xcrun').write_text('''#!/bin/sh
+if [ "$*" = "swift --version" ]; then
+    echo "Apple Swift version $SWIFT_VERSION"
+    exit "$SWIFT_STATUS"
+fi
+if [ "$*" = "swift package dump-package" ]; then exit "$PACKAGE_STATUS"; fi
+exit 99
+''')
+            for tool in path.iterdir():
+                tool.chmod(0o755)
+            env = dict(os.environ, PATH=f'{path}:{os.environ["PATH"]}',
+                       XCODE_STATUS='0', SWIFT_STATUS='0', SWIFT_VERSION='6.4',
+                       PACKAGE_STATUS='0')
+            for change in ({}, {'XCODE_STATUS': '1'}, {'SWIFT_STATUS': '1'},
+                           {'SWIFT_VERSION': '6.3'}, {'PACKAGE_STATUS': '1'}):
+                with self.subTest(change=change):
+                    result = subprocess.run(['bash', '-c', verify['run']],
+                                            env=dict(env, **change), capture_output=True)
+                    self.assertEqual(result.returncode == 0, not change, (result.stdout, result.stderr))

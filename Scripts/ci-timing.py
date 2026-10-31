@@ -81,12 +81,12 @@ def measure(run, jobs, workflow, logs=None):
                    and measured[name]['execution_seconds'] is not None
                    and measured[name]['queue_seconds'] is not None
                    for name in scope)
-    qualified = (complete and run.get('status') == 'completed'
-                 and run.get('conclusion') == 'success'
-                 and all(indexed[name].get('conclusion') == 'success' for name in scope))
+    # Qualification measures required work, independently of optional deployment.
+    qualified = (complete and all(indexed[name].get('conclusion') == 'success' for name in scope))
     classification = (run.get('conclusion') if run.get('status') == 'completed'
                       and run.get('conclusion') in ('failure', 'cancelled')
-                      else ('success' if qualified else 'incomplete'))
+                      else ('success' if qualified and run.get('status') == 'completed'
+                            and run.get('conclusion') == 'success' else 'incomplete'))
     finish = max((indexed.get(n, {}).get('completed_at') or '' for n in REQUIRED))
     last = max(REQUIRED, key=lambda n: indexed.get(n, {}).get('completed_at') or '')
     durations = [j['execution_seconds'] for name, j in measured.items()
@@ -97,6 +97,7 @@ def measure(run, jobs, workflow, logs=None):
                 source_revision=run.get('head_sha'), event=run.get('event'),
                 url=run.get('html_url'), required_conclusions={n: indexed.get(n, {}).get('conclusion') for n in REQUIRED},
                 qualified=qualified, classification=classification,
+                workflow_status=run.get('status'), workflow_conclusion=run.get('conclusion'),
                 required_wait_seconds=wait,
                 successful_required_wait_seconds=wait if qualified else None,
                 runner_minutes=sum(durations) / 60 if all(d is not None for d in durations) else None,
@@ -111,6 +112,8 @@ def summary(report):
     lines = [f"## CI timing: run {report['run_id']} (attempt {report['run_attempt']})",
              f"Classification: **{report['classification']}**; event: `{report['event']}`; "
              f"source revision: `{report['source_revision']}`.",
+             f"Workflow status: `{report['workflow_status']}`; conclusion: `{report['workflow_conclusion']}`.",
+             f"Required qualification: **{'success' if report['qualified'] else 'unavailable or unsuccessful'}**.",
              f"Required conclusions: `{json.dumps(report['required_conclusions'], sort_keys=True)}`.",
              f"Required-check wait: {show(report['required_wait_seconds'])} seconds; "
              f"successful wait: {show(report['successful_required_wait_seconds'])} seconds.",

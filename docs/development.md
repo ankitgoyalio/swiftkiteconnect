@@ -157,9 +157,13 @@ For each comparison:
    the same tested revision, event, workflow hash, runner image, architecture,
    compiler, SDK and runtime. If revisions differ, inspect their changes before
    grouping them. Record the sample size and every mismatch on the tracking issue.
-2. Separate failed, cancelled and incomplete runs. Use `classification` and
-   `qualified` in `measurement.json`. Missing timestamps cannot establish a
-   successful duration. Keep diagnostic evidence without adding it to the baseline.
+2. Group runs by `classification` in `measurement.json` to keep failed, cancelled
+   and incomplete workflows separate. Use `qualified` and
+   `successful_required_wait_seconds` to identify successful required work.
+   Required qualification includes dependencies and is independent of Pages
+   deployment. A failed deployment preserves the successful required-check wait.
+   Inspect `workflow_status` and `workflow_conclusion` for the overall outcome.
+   Missing required timestamps cannot establish a successful duration.
 3. Compare required-check wait from run creation to the last required job's
    completion. Inspect the completion chain and each job's queue after dependencies,
    dependency wait and execution. Do not add overlapping execution times as elapsed time.
