@@ -5,6 +5,11 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      measurement_id:
+        description: 'Optional concurrency isolation ID for controlled measurements'
+        type: string
+        required: false
+        default: ''
       package_cache:
         description: 'Download cache experiment (off until hosted benefit is measured)'
         type: choice
@@ -16,7 +21,7 @@ on:
         default: 'off'
         options: ['off', 'cold', 'warm', 'invalid', 'compare']
 concurrency:
-  group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  group: protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ github.event_name == 'workflow_dispatch' && inputs.measurement_id != '' && format('-measurement-{0}', inputs.measurement_id) || '' }}
   cancel-in-progress: true
 permissions:
   contents: read

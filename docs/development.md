@@ -128,16 +128,16 @@ successful qualification.
 
 ## Compare required-check completion time
 
-Use [the timing collector](../Scripts/ci-timing.py) with authenticated `gh`,
-Python 3 and Ruby. Collect each completed Protocol tests run into a new directory:
+Collect completed Protocol tests runs with [the timing collector](../Scripts/ci-timing.py),
+authenticated `gh`, Python 3 and Ruby:
 
 ```fish
 python3 Scripts/ci-timing.py --run-id 41013409795
 python3 Scripts/ci-timing.py --replay .test-results/ci-timing/41013409795-attempt-1
 ```
 
-The first command prints the evidence directory. The second regenerates
-`measurement.json` and `summary.md` from its retained inputs without API access.
+The first command prints the evidence directory. Replay regenerates
+`measurement.json` and `summary.md` offline.
 Keep the directory in ignored `.test-results/` or an Actions artifact.
 Collection uses the run's current attempt and retains paginated job metadata,
 logs, artifact metadata and the tested revision's workflow. Check
@@ -183,6 +183,17 @@ For each comparison:
 7. Retain a compact dated summary and Actions links on the implementation issue.
    Include the median, range, runner variation and unavailable measurements.
    Keep raw logs and per-run JSON out of tracked documentation.
+
+### Run matched cache measurements
+
+On a fixed cache-owning revision, run three batches with
+`package_cache/compilation_cache` set to `off/off`, `warm/off`, `warm/warm`.
+Use `measurement_id=spec55-b1-off-off` and matching condition suffixes.
+Repeat with `b2` and `b3`. Rotate order; finish each batch before the next.
+Cap simultaneous runs at three. Verify hits and collect externally as above.
+
+Nonempty IDs isolate manual concurrency. Blank IDs and PR/push groups are unchanged.
+Reusing an ID cancels its earlier run on the same ref.
 
 ## Evaluate minimum macOS compilation caching
 

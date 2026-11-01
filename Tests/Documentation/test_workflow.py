@@ -2,6 +2,7 @@
 import itertools
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import unittest
@@ -124,16 +125,58 @@ class PublicationWorkflow(unittest.TestCase):
         self.assertEqual(len(artifacts), 1)
         self.assertEqual(artifacts[0]['with']['path'], '.build/documentation/docc-validation.tar')
 
-    def test_superseded_pr_attempts_cancel_only_the_same_pr_group(self):
+    def test_concurrency_preserves_automatic_groups_and_isolates_manual_measurements(self):
         result = subprocess.run([
             'ruby', '-rjson', '-ryaml', '-e',
             'puts JSON.generate(YAML.load_file(ARGV[0]))',
             str(ROOT / '.github/workflows/protocol-tests.yml')],
             check=True, capture_output=True, text=True)
-        concurrency = json.loads(result.stdout)['concurrency']
+        workflow = json.loads(result.stdout)
+        concurrency = workflow['concurrency']
         self.assertTrue(concurrency['cancel-in-progress'])
-        self.assertEqual(concurrency['group'],
-                         'protocol-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}')
+
+        # Evaluate the workflow's actual group at the Actions expression boundary.
+        # This subset uses string/number truthiness, &&, || and format only.
+        def group(event, ref='refs/heads/experiment', pr='', measurement=''):
+            context = {
+                'github.workflow': 'Protocol tests',
+                'github.event_name': event,
+                'github.event.pull_request.number': pr,
+                'github.ref': ref,
+                'inputs.measurement_id': measurement,
+            }
+
+            def interpolate(match):
+                expression = match.group(1)
+                for key, value in context.items():
+                    expression = expression.replace(key, repr(value))
+                expression = expression.replace('&&', ' and ').replace('||', ' or ')
+                return str(eval(expression, {'__builtins__': {}},
+                                {'format': lambda template, value: template.format(value)}))
+
+            return re.sub(r'\$\{\{(.*?)\}\}', interpolate, concurrency['group'])
+
+        for measurement in ('', 'batch-1-off-off'):
+            with self.subTest(event='pull_request', measurement=measurement):
+                self.assertEqual(group('pull_request', pr=62, measurement=measurement),
+                                 'protocol-Protocol tests-62')
+                self.assertEqual(group('pull_request', pr=63, measurement=measurement),
+                                 'protocol-Protocol tests-63')
+            self.assertEqual(group('push', ref='refs/heads/main', measurement=measurement),
+                             'protocol-Protocol tests-refs/heads/main')
+        self.assertEqual(group('workflow_dispatch'),
+                         'protocol-Protocol tests-refs/heads/experiment')
+        ids = ('batch-1-off-off', 'batch-1-warm-off', 'batch-1-warm-warm')
+        groups = [group('workflow_dispatch', measurement=value) for value in ids]
+        self.assertEqual(len(set(groups)), 3)
+        self.assertNotIn(group('workflow_dispatch'), groups)
+        self.assertEqual(groups[0], group('workflow_dispatch', measurement=ids[0]))
+        self.assertNotEqual(groups[0], group('workflow_dispatch',
+                            ref='refs/heads/other', measurement=ids[0]))
+        inputs = workflow.get('on', workflow.get('true'))['workflow_dispatch']['inputs']
+        self.assertEqual(inputs['measurement_id']['type'], 'string')
+        self.assertFalse(inputs['measurement_id']['required'])
+        self.assertEqual(inputs['measurement_id']['default'], '')
 
     def test_pinned_formatter_and_base_check_block_apple_job(self):
         result = subprocess.run([
