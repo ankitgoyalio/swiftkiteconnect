@@ -58,3 +58,35 @@ input, composite action, comparison and save steps, and restore the direct
 steps. Remove saved entries with the `minimum-macos-compilation-v1-` prefix through
 Actions cache management if needed. No protection or runtime-transfer change is
 part of rollback.
+
+## Run matched cache measurements
+
+Before timing, seed `package-downloads-v2` on the fixed cache-owning revision:
+
+1. Dispatch `package_cache=cold`, `compilation_cache=off`, and a unique
+   `measurement_id`. Confirm every resolver reports Git-validated shared downloads
+   and saves a nonempty v2 entry. Retain successful candidate builds and suites.
+2. Dispatch `package_cache=warm`, `compilation_cache=off` on the same revision.
+   Confirm every path restores that v2 seed, validates its repositories, and
+   completes the normal build without rejected-cache warnings or replacement downloads.
+3. If any path misses, repairs, or rejects the seed, retain the run as a diagnostic.
+   Verify a subsequent warm run before collecting timing samples.
+4. Run `package_cache=invalid`, `compilation_cache=off` separately to verify bounded
+   repair. Confirm `clean retry: true`, Git-validated downloads, and a new save.
+   Verify that a subsequent warm run restores the repaired entry without recovery.
+
+The wrapper checks bare repositories and their complete Git object stores before
+and after resolution. Resolver success alone does not permit saving downloads.
+Invalid state consumes one discard of repository downloads and resolver scratch,
+followed by one clean resolution. A second failure blocks the job.
+Credentials and qualification evidence stay outside the discarded and cached paths.
+Keep both experiments default-off until correctness and repeated timings support them.
+
+On a fixed cache-owning revision, run three batches with
+`package_cache/compilation_cache` set to `off/off`, `warm/off`, `warm/warm`.
+Use `measurement_id=spec55-b1-off-off` and matching condition suffixes.
+Repeat with `b2` and `b3`. Rotate order; finish each batch before the next.
+Cap simultaneous runs at three. Verify hits and collect externally as above.
+
+Nonempty IDs isolate manual concurrency. Blank IDs and PR/push groups are unchanged.
+Reusing an ID cancels its earlier run on the same ref.

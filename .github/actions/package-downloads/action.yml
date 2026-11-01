@@ -93,7 +93,7 @@ runs:
         echo "save_start=$(date +%s)" >> "$GITHUB_OUTPUT"
     - name: Save resolved package downloads
       id: save
-      if: steps.restore.outputs.cache-matched-key == '' || steps.resolve.outputs.recovered == 'true' || inputs.mode == 'invalid'
+      if: steps.resolve.outputs.healthy == 'true' && (steps.restore.outputs.cache-matched-key == '' || steps.resolve.outputs.recovered == 'true')
       uses: actions/cache/save@v5
       with:
         path: ${{ steps.identity.outputs.root }}/repositories
@@ -106,6 +106,7 @@ runs:
         CACHE_MODE: ${{ inputs.mode }}
         MATCHED_KEY: ${{ steps.restore.outputs.cache-matched-key }}
         RECOVERED: ${{ steps.resolve.outputs.recovered }}
+        HEALTHY: ${{ steps.resolve.outputs.healthy }}
         SAVE_OUTCOME: ${{ steps.save.outcome }}
         RESTORE_SECONDS: ${{ steps.restored.outputs.seconds }}
         SAVE_START: ${{ steps.resolve.outputs.save_start }}
@@ -114,7 +115,7 @@ runs:
         {
           echo "Candidate: $(git rev-parse HEAD)"
           echo "Resolver: $CACHE_KIND; mode: $CACHE_MODE"
-          echo "Matched cache: ${MATCHED_KEY:-none}; clean retry: ${RECOVERED:-unknown}; save: $SAVE_OUTCOME"
+          echo "Matched cache: ${MATCHED_KEY:-none}; clean retry: ${RECOVERED:-unknown}; Git-validated shared downloads: ${HEALTHY:-false}; save: $SAVE_OUTCOME"
           if [[ "$CACHE_MODE" == cold ]]; then
             echo 'Restore: skipped (controlled cold run)'
           else

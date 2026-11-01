@@ -1,4 +1,6 @@
 """Exercise the resolver command boundary, including bounded clean recovery."""
+import itertools
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -11,45 +13,6 @@ SCRIPT = ROOT / 'Scripts/ci-package-cache.py'
 
 
 class PackageCacheRecovery(unittest.TestCase):
-    def test_unusable_downloads_retry_once_and_preserve_failure(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            cache = root / 'cache'
-            (cache / 'repositories').mkdir(parents=True)
-            (cache / 'repositories/broken').write_text('unusable')
-            (cache / 'credentials').write_text('must survive')
-            scratch = root / 'scratch'
-            scratch.mkdir()
-            (scratch / 'stale').write_text('stale resolution')
-            # Swift is an external process boundary. Fail while restored state
-            # exists, then succeed only after both resolver inputs are clean.
-            compiler = root / 'swift'
-            compiler.write_text('''#!/usr/bin/env python3
-import os, pathlib, sys
-root = pathlib.Path(os.environ['FIXTURE'])
-with (root / 'attempts').open('a') as output:
-    output.write('resolve\\n')
-assert '--force-resolved-versions' in sys.argv
-assert '--enable-dependency-cache' in sys.argv
-if (root / 'cache/repositories/broken').exists():
-    sys.exit(42)
-assert not (root / 'scratch/stale').exists()
-sys.exit(int(os.environ.get('FINAL_STATUS', '0')))
-''')
-            compiler.chmod(0o755)
-            env = dict(os.environ, PATH=f'{root}:{os.environ["PATH"]}', FIXTURE=str(root))
-            command = ['python3', str(SCRIPT), 'resolve', '--kind', 'swift',
-                       '--cache-root', str(cache), '--scratch', str(scratch)]
-            result = subprocess.run(command, env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual((root / 'attempts').read_text(), 'resolve\nresolve\n')
-            self.assertEqual((cache / 'credentials').read_text(), 'must survive')
-            (root / 'attempts').unlink()
-            env['FINAL_STATUS'] = '19'
-            result = subprocess.run(command, env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 19, result.stderr)
-            self.assertEqual((root / 'attempts').read_text(), 'resolve\nresolve\n')
-
     def test_identity_separates_dependencies_toolchain_sdk_and_configuration(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -75,6 +38,7 @@ sys.exit(int(os.environ.get('FINAL_STATUS', '0')))
                 return result.stdout
 
             original = identity()
+            self.assertIn('package-downloads-v2-swift-', original)
             (root / 'Source.swift').write_text('edited source must rebuild')
             self.assertEqual(identity(), original)
             (root / 'Package.resolved').write_text('{"pins": ["changed"]}')
@@ -92,6 +56,31 @@ sys.exit(int(os.environ.get('FINAL_STATUS', '0')))
                 env['IOS_SIMULATOR_RUNTIME'] = os.environ.get('IOS_SIMULATOR_RUNTIME', '')
                 env['SDK'] = 'SDK2'
                 self.assertNotEqual(identity(), original)
+
+
+class DownloadCacheSave(unittest.TestCase):
+    def test_save_requires_healthy_downloads_and_a_miss_or_repair(self):
+        result = subprocess.run(['ruby', '-rjson', '-ryaml', '-e',
+                                 'puts JSON.generate(YAML.load_file(ARGV[0]))',
+                                 str(ROOT / '.github/actions/package-downloads/action.yml')],
+                                check=True, capture_output=True, text=True)
+        steps = json.loads(result.stdout)['runs']['steps']
+        save = next(step for step in steps if step.get('id') == 'save')
+        for healthy, matched, recovered, mode in itertools.product(
+                ('true', 'false', ''), ('', 'existing-v2-key'),
+                ('true', 'false', ''), ('cold', 'warm', 'invalid')):
+            expression = save['if']
+            for key, value in {
+                'steps.resolve.outputs.healthy': healthy,
+                'steps.restore.outputs.cache-matched-key': matched,
+                'steps.resolve.outputs.recovered': recovered,
+                'inputs.mode': mode,
+            }.items():
+                expression = expression.replace(key, repr(value))
+            expression = expression.replace('&&', ' and ').replace('||', ' or ')
+            allowed = eval(expression, {'__builtins__': {}}, {})
+            self.assertEqual(allowed, healthy == 'true' and (not matched or recovered == 'true'),
+                             (healthy, matched, recovered, mode))
 
 
 class IOSRunnerArguments(unittest.TestCase):

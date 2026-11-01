@@ -186,14 +186,8 @@ For each comparison:
 
 ### Run matched cache measurements
 
-On a fixed cache-owning revision, run three batches with
-`package_cache/compilation_cache` set to `off/off`, `warm/off`, `warm/warm`.
-Use `measurement_id=spec55-b1-off-off` and matching condition suffixes.
-Repeat with `b2` and `b3`. Rotate order; finish each batch before the next.
-Cap simultaneous runs at three. Verify hits and collect externally as above.
-
-Nonempty IDs isolate manual concurrency. Blank IDs and PR/push groups are unchanged.
-Reusing an ID cancels its earlier run on the same ref.
+Follow [matched cache measurements](ci-compilation-cache.md#run-matched-cache-measurements)
+to validate download seeds and collect comparable runs.
 
 ## Evaluate minimum macOS compilation caching
 
