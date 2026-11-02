@@ -118,11 +118,6 @@ record its evidence in Verification.md. The newer-runtime `apple` job and the
 `ubuntu` job also remain required. Workflow configuration alone does not claim
 successful qualification.
 
-DocC validation runs in `docc`, alongside `apple-platform` tests. The required
-`apple` check succeeds only when both jobs succeed. A failed, cancelled, or
-skipped prerequisite fails that aggregate check. Pages publication still requires
-successful `apple` and `ubuntu` checks on a push to `main`.
-
 To compare workflow performance, dispatch the baseline and candidate refs with
 `workflow_dispatch`. Keep SDK source, dependencies, toolchain pins, and test
 coverage unchanged. Measure from workflow creation until `apple`, `ubuntu`, and
