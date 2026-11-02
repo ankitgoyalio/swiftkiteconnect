@@ -156,3 +156,18 @@ class PublicationWorkflow(unittest.TestCase):
         })
         self.assertEqual(set(jobs['minimum-apple']['needs']),
                          {'minimum-macos', 'minimum-ios'})
+
+    def test_runtime_export_initializes_simulator_service_first(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        steps = json.loads(result.stdout)['jobs']['ios18-runtime']['steps']
+        export = next(i for i, step in enumerate(steps)
+                      if 'xcodebuild -downloadPlatform' in step.get('run', ''))
+        initializers = [step for step in steps[:export]
+                        if 'xcrun simctl list runtimes' in step.get('run', '')]
+        self.assertEqual(len(initializers), 1)
+        self.assertIn('xcrun simctl list devices available', initializers[0]['run'])
+        self.assertLessEqual(initializers[0]['timeout-minutes'], 5)

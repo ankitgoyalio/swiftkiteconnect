@@ -273,7 +273,8 @@ jobs:
       DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
     steps:
       - uses: actions/checkout@v7
-      - name: Record runtime export environment
+      - name: Initialize simulator service and record runtime export environment
+        timeout-minutes: 5
         shell: bash
         run: |
           set -euo pipefail
@@ -284,6 +285,10 @@ jobs:
             uname -m
             xcodebuild -version
             df -h /
+            # A fresh host can reject export before CoreSimulator is ready.
+            # The original minimum-macos inventory initialized it implicitly.
+            xcrun simctl list runtimes
+            xcrun simctl list devices available
           } 2>&1 | tee .test-results/ios18-runtime-environment.txt
           [[ "$(sw_vers -productVersion)" == 15.* ]]
       # Keep the Xcode 16 export and Xcode 27 test separation: Xcode 16's
