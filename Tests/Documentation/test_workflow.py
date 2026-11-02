@@ -25,7 +25,7 @@ class PublicationWorkflow(unittest.TestCase):
             'IOS_RESULT': '${{ needs.minimum-ios.result }}',
         })
         for macos, ios in itertools.product(
-                ('success', 'failure', 'cancelled', 'skipped'), repeat=2):
+                ('success', 'failure', 'cancelled', 'skipped', ''), repeat=2):
             result = subprocess.run(
                 ['bash', '-c', gate['run']],
                 env=dict(os.environ, MACOS_RESULT=macos, IOS_RESULT=ios),
@@ -100,3 +100,47 @@ class PublicationWorkflow(unittest.TestCase):
         self.assertFalse(enforce.get('continue-on-error', False))
         self.assertNotIn('if', enforce)
         self.assertEqual(apple[0]['with']['fetch-depth'], 0)
+
+    def test_minimum_ios_waits_for_runtime_without_waiting_for_macos_tests(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        jobs = json.loads(result.stdout)['jobs']
+        self.assertEqual(jobs['minimum-ios']['needs'], 'ios18-runtime')
+        runtime = jobs['ios18-runtime']
+        self.assertNotIn('needs', runtime)
+        self.assertNotIn('if', runtime)
+        self.assertFalse(runtime.get('continue-on-error', False))
+        self.assertEqual(runtime['runs-on'], 'macos-15')
+        self.assertEqual(runtime['env']['DEVELOPER_DIR'],
+                         '/Applications/Xcode_16.4.app/Contents/Developer')
+        uploads = [step for step in runtime['steps']
+                   if step.get('with', {}).get('name') == 'ios18-runtime']
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(uploads[0]['with']['compression-level'], 0)
+        downloads = [step for step in jobs['minimum-ios']['steps']
+                     if 'download-artifact@' in step.get('uses', '')]
+        self.assertEqual(len(downloads), 1)
+        # No run-id/repository override: consume only this run's runtime artifact.
+        self.assertEqual(downloads[0]['with'], {
+            'name': 'ios18-runtime', 'path': '${{ runner.temp }}/ios18-runtime',
+        })
+        self.assertEqual(set(jobs['minimum-apple']['needs']),
+                         {'minimum-macos', 'minimum-ios'})
+
+    def test_runtime_export_initializes_simulator_service_first(self):
+        result = subprocess.run([
+            'ruby', '-rjson', '-ryaml', '-e',
+            'puts JSON.generate(YAML.load_file(ARGV[0]))',
+            str(ROOT / '.github/workflows/protocol-tests.yml')],
+            check=True, capture_output=True, text=True)
+        steps = json.loads(result.stdout)['jobs']['ios18-runtime']['steps']
+        export = next(i for i, step in enumerate(steps)
+                      if 'xcodebuild -downloadPlatform' in step.get('run', ''))
+        initializers = [step for step in steps[:export]
+                        if 'xcrun simctl list runtimes' in step.get('run', '')]
+        self.assertEqual(len(initializers), 1)
+        self.assertIn('xcrun simctl list devices available', initializers[0]['run'])
+        self.assertLessEqual(initializers[0]['timeout-minutes'], 5)
