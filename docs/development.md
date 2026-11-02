@@ -100,10 +100,11 @@ The required `minimum-apple` job in the protocol workflow passes only when both
 `minimum-macos` and `minimum-ios` succeed. The macOS job uses GitHub's `macos-15`
 image, Xcode 16.4, and standalone Swift 6.4.0. Xcode 16.4's embedded package
 resolver cannot load a tools-version 6.4 manifest, so iOS tests use Xcode 27.1
-on `xcode-27`. The macOS job exports the iOS 18.5 runtime for the iOS job to
-import and explicitly test with an iPhone 16 simulator. The iOS job removes
-preinstalled runtimes from its fresh hosted runner before downloading the older
-image to leave room for import and testing.
+on `xcode-27`. The independent `ios18-runtime` job uses macOS 15 and Xcode 16.4
+to export the iOS 18.5 runtime. The iOS job waits for that artifact, without
+waiting for minimum macOS tests, and explicitly tests with an iPhone 16 simulator.
+The iOS job removes preinstalled runtimes from its fresh hosted runner before
+downloading the older image to leave room for import and testing.
 
 The jobs fail if the OS, compiler, runtime, build, or tests are unavailable or
 incompatible. The `minimum-macos-test-results` and `minimum-ios-test-results`
@@ -116,6 +117,21 @@ Before release, require a successful `minimum-apple` run for the candidate and
 record its evidence in Verification.md. The newer-runtime `apple` job and the
 `ubuntu` job also remain required. Workflow configuration alone does not claim
 successful qualification.
+
+DocC validation runs in `docc`, alongside `apple-platform` tests. The required
+`apple` check succeeds only when both jobs succeed. A failed, cancelled, or
+skipped prerequisite fails that aggregate check. Pages publication still requires
+successful `apple` and `ubuntu` checks on a push to `main`.
+
+To compare workflow performance, dispatch the baseline and candidate refs with
+`workflow_dispatch`. Keep SDK source, dependencies, toolchain pins, and test
+coverage unchanged. Measure from workflow creation until `apple`, `ubuntu`, and
+`minimum-apple` finish successfully. Report dependency waits, runner queueing,
+setup, builds, tests, and artifact transfers separately. Sum job execution time
+to show the compute tradeoff, but do not call that sum billed cost. Retain run
+IDs, commit SHAs, metadata, logs, and sample counts in ignored `.test-results/`
+and summarize results on the PR. Failed or cancelled runs are diagnostic evidence,
+not successful performance samples.
 
 ## Review dependency updates
 
