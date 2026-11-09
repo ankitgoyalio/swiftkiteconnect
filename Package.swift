@@ -6,7 +6,7 @@ let package = Package(
     platforms: [.iOS(.v18), .macOS(.v15)],
     products: [.library(name: "KiteConnect", targets: ["KiteConnect"])],
     dependencies: [
-        .package(url: "https://github.com/apple/swift-crypto.git", exact: "4.0.0"),
+        .package(url: "https://github.com/apple/swift-crypto.git", exact: "5.1.1"),
         .package(url: "https://github.com/vapor/websocket-kit.git", exact: "2.16.2"),
         .package(url: "https://github.com/apple/swift-nio.git", from: "2.78.0"),
         .package(url: "https://github.com/apple/swift-nio-ssl.git", from: "2.24.0"),
