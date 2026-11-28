@@ -45,7 +45,7 @@ for try await event in ticker {
 }
 ```
 
-Use one iterator per ticker. A transient disconnect emits `.interrupted`, and the ticker emits `.recovered` after restoring the latest requested subscriptions and modes. Reconcile any data missed during the gap through the REST API. Call `await ticker.close()` to end the stream. [Kite WebSocket API](https://kite.trade/docs/connect/v3/websocket/)
+Use one iterator per ticker. Tick batches and WebSocket Order Updates arrive in receive order. The ticker pauses receives when its event buffer fills. A transient disconnect emits `.interrupted`, and the ticker emits `.recovered` after restoring the latest requested subscriptions and modes. Reconcile any data missed during the gap through the REST API. Call `await ticker.close()` to close the socket and drain buffered events. [Kite WebSocket API](https://kite.trade/docs/connect/v3/websocket/)
 
 ## Verify HTTP Postbacks
 

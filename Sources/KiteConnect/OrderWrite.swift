@@ -179,14 +179,22 @@ public struct OrderSliceError: Error, Decodable, Equatable, Sendable {
     public let code: Int
     public let errorType: String
     public let message: String
-    /// Additional service data, including an explicit JSON null.
-    public let data: Order.Metadata
+    /// Additional service data. An omitted field is nil, and an explicit JSON null is `.null`.
+    public let data: Order.Metadata?
 
     public var kind: KiteServiceError.Kind? { .init(rawValue: errorType) }
 
     private enum CodingKeys: String, CodingKey {
         case code, message, data
         case errorType = "error_type"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        code = try values.decode(Int.self, forKey: .code)
+        errorType = try values.decode(String.self, forKey: .errorType)
+        message = try values.decode(String.self, forKey: .message)
+        data = values.contains(.data) ? try values.decode(Order.Metadata.self, forKey: .data) : nil
     }
 }
 
