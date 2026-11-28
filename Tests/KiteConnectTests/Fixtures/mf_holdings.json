@@ -1,0 +1,16 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "folio": "3108290884",
+      "average_price": 78.43,
+      "last_price": 84.86,
+      "last_price_date": "",
+      "pledged_quantity": 0,
+      "fund": "INVESCO INDIA TAX PLAN - DIRECT PLAN",
+      "tradingsymbol": "INF205K01NT8",
+      "pnl": 0,
+      "quantity": 382.488
+    }
+  ]
+}
