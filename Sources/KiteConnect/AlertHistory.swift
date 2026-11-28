@@ -66,7 +66,7 @@ public struct AlertHistoryQuote: Decodable, Equatable, Sendable {
 }
 
 /// Order metadata returned for an ATO trigger. Kite does not specify a fixed schema for this field.
-public enum AlertOrderMetadata: Decodable, Equatable, Sendable {
+public enum AlertOrderMetadata: Codable, Equatable, Sendable {
     case object([String: Self])
     case array([Self])
     case string(String)
@@ -88,6 +88,18 @@ public enum AlertOrderMetadata: Decodable, Equatable, Sendable {
             self = .array(array)
         } else {
             self = .object(try value.decode([String: Self].self))
+        }
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        var value = encoder.singleValueContainer()
+        switch self {
+        case .object(let object): try value.encode(object)
+        case .array(let array): try value.encode(array)
+        case .string(let string): try value.encode(string)
+        case .number(let number): try value.encode(number)
+        case .boolean(let boolean): try value.encode(boolean)
+        case .null: try value.encodeNil()
         }
     }
 }

@@ -1,4 +1,6 @@
 /// Order parameters inside an Alert Triggers Order basket.
+/// A decoded order preserves the server's params object when encoded for an update.
+/// Typed fields use their authoring defaults when absent, or an empty string or zero for required fields.
 public struct AlertBasketOrder: Codable, Equatable, Sendable {
     public struct GTT: Codable, Equatable, Sendable {
         public let target: Double
@@ -7,6 +9,14 @@ public struct AlertBasketOrder: Codable, Equatable, Sendable {
         public init(target: Double, stoploss: Double) {
             self.target = target
             self.stoploss = stoploss
+        }
+
+        private enum CodingKeys: String, CodingKey { case target, stoploss }
+
+        public init(from decoder: any Decoder) throws {
+            let fields = try decoder.container(keyedBy: CodingKeys.self)
+            target = (try? fields.decode(Double.self, forKey: .target)) ?? 0
+            stoploss = (try? fields.decode(Double.self, forKey: .stoploss)) ?? 0
         }
     }
 
@@ -28,6 +38,8 @@ public struct AlertBasketOrder: Codable, Equatable, Sendable {
     public let icebergLegs: Int?
     public let marketProtection: Double?
     public let gtt: GTT?
+
+    private let preservedParams: [String: AlertOrderMetadata]?
 
     public init(
         transactionType: String,
@@ -67,6 +79,7 @@ public struct AlertBasketOrder: Codable, Equatable, Sendable {
         self.icebergLegs = icebergLegs
         self.marketProtection = marketProtection
         self.gtt = gtt
+        self.preservedParams = nil
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -80,6 +93,61 @@ public struct AlertBasketOrder: Codable, Equatable, Sendable {
         case lastPrice = "last_price"
         case icebergLegs = "iceberg_legs"
         case marketProtection = "market_protection"
+    }
+
+    public init(from decoder: any Decoder) throws {
+        preservedParams = try decoder.singleValueContainer().decode([String: AlertOrderMetadata].self)
+        let fields = try decoder.container(keyedBy: CodingKeys.self)
+        func value<T: Decodable>(_ key: CodingKeys, as type: T.Type = T.self) -> T? {
+            try? fields.decode(type, forKey: key)
+        }
+
+        transactionType = value(.transactionType) ?? ""
+        product = value(.product) ?? ""
+        orderType = value(.orderType) ?? ""
+        quantity = value(.quantity) ?? 0
+        validity = value(.validity) ?? "DAY"
+        validityTTL = value(.validityTTL) ?? 0
+        variety = value(.variety) ?? "regular"
+        price = value(.price) ?? 0
+        triggerPrice = value(.triggerPrice) ?? 0
+        disclosedQuantity = value(.disclosedQuantity) ?? 0
+        tags = value(.tags) ?? []
+        squareoff = value(.squareoff) ?? 0
+        stoploss = value(.stoploss) ?? 0
+        trailingStoploss = value(.trailingStoploss) ?? 0
+        lastPrice = value(.lastPrice)
+        icebergLegs = value(.icebergLegs)
+        marketProtection = value(.marketProtection)
+        gtt = value(.gtt)
+    }
+
+    public func encode(to encoder: any Encoder) throws {
+        if let preservedParams {
+            var value = encoder.singleValueContainer()
+            try value.encode(preservedParams)
+            return
+        }
+
+        var fields = encoder.container(keyedBy: CodingKeys.self)
+        try fields.encode(transactionType, forKey: .transactionType)
+        try fields.encode(product, forKey: .product)
+        try fields.encode(orderType, forKey: .orderType)
+        try fields.encode(quantity, forKey: .quantity)
+        try fields.encode(validity, forKey: .validity)
+        try fields.encode(validityTTL, forKey: .validityTTL)
+        try fields.encode(variety, forKey: .variety)
+        try fields.encode(price, forKey: .price)
+        try fields.encode(triggerPrice, forKey: .triggerPrice)
+        try fields.encode(disclosedQuantity, forKey: .disclosedQuantity)
+        try fields.encode(tags, forKey: .tags)
+        try fields.encode(squareoff, forKey: .squareoff)
+        try fields.encode(stoploss, forKey: .stoploss)
+        try fields.encode(trailingStoploss, forKey: .trailingStoploss)
+        try fields.encodeIfPresent(lastPrice, forKey: .lastPrice)
+        try fields.encodeIfPresent(icebergLegs, forKey: .icebergLegs)
+        try fields.encodeIfPresent(marketProtection, forKey: .marketProtection)
+        try fields.encodeIfPresent(gtt, forKey: .gtt)
     }
 }
 

@@ -116,6 +116,47 @@ struct AlertTests {
         #expect(alert.basket?.items.first?.order.quantity == 10000)
     }
 
+    @Test func forwardsFetchedSparseBasketParamsWithoutChangingTheirJSON() async throws {
+        // Envelope from the pinned alerts_get.json ATO row, with sparse params adapted from Rust's Preserved test.
+        // https://github.com/zerodha/kiteconnect-mocks/blob/c7a81238f93b4057c07257823b1bfaf30cba9ae5/alerts_get.json
+        // https://github.com/zerodha/kiteconnect-rs/blob/fce212f81d451ad3a3195a6abbe31058fc89520e/src/alerts.rs
+        let fixture = "alerts_get_one_ato_sparse.json"
+        let uuid = "e888ed4a-6801-406f-bdc2-002db5a8411d"
+        let expectedParams = """
+            {"order_type":"SL-M","quantity":10,"price":0,"disclosed_quantity":4,"trigger_price":null,
+             "gtt":{"target":2.5,"extension":{"enabled":true,"thresholds":[null,-1.25,9007199254740993]}},
+             "future_param":["preserved",{"legs":[1,2]}]}
+            """
+        let alert = try await withAlertFixture(fixture, method: "GET", path: "/alerts/\(uuid)") { kite in
+            try await kite.alert(uuid: uuid)
+        }
+
+        let item = try #require(alert.basket?.items.first)
+        #expect(item.order.orderType == "SL-M")
+        #expect(item.order.quantity == 10)
+        #expect(item.order.disclosedQuantity == 4)
+        #expect(item.order.gtt?.target == 2.5)
+        let encoded = try JSONEncoder().encode(item.order)
+        try Self.expectJSON(String(decoding: encoded, as: UTF8.self), equals: expectedParams)
+
+        let moved = AlertBasketCreate.Item(
+            exchange: item.exchange, tradingSymbol: item.tradingSymbol, weight: 2, order: item.order
+        )
+        let id = try #require(item.id)
+        _ = try await withAlertFixture(fixture, method: "PUT", path: "/alerts/\(uuid)") { request in
+            let form = try Self.formBody(request)
+            let basket = try #require(form["basket"])
+            try Self.expectJSON(basket, equals: """
+                {"items":[{"type":"update","id":275218517,"exchange":"NSE","tradingsymbol":"GOLDBEES",
+                           "weight":2,"params":\(expectedParams)}]}
+                """)
+        } operation: { kite in
+            try await kite.modifyAlert(
+                uuid: uuid, condition: Self.condition, kind: .ato(basketOperations: [.update(id: id, item: moved)])
+            )
+        }
+    }
+
     @Test func modifiesSimpleAlert() async throws {
         let uuid = Self.simpleUUID
         let condition = AlertCondition(
