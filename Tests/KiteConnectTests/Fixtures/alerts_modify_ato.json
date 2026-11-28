@@ -1,0 +1,54 @@
+{
+  "status": "success",
+  "data": {
+    "type": "ato",
+    "user_id": "AB1234",
+    "uuid": "e888ed4a-6801-406f-bdc2-002db5a8411d",
+    "name": "buy gold",
+    "status": "disabled",
+    "disabled_reason": "",
+    "basket": {
+      "items": [
+        {
+          "id": 275218517,
+          "tradingsymbol": "GOLDBEES",
+          "exchange": "NSE",
+          "instrument_token": 3693569,
+          "weight": 10000,
+          "params": {
+            "validity": "DAY",
+            "validity_ttl": 0,
+            "variety": "regular",
+            "product": "CNC",
+            "order_type": "LIMIT",
+            "transaction_type": "BUY",
+            "quantity": 10000,
+            "disclosed_quantity": 0,
+            "price": 72.22,
+            "trigger_price": 0,
+            "squareoff": 0,
+            "stoploss": 0,
+            "trailing_stoploss": 0,
+            "gtt": {
+              "target": 0,
+              "stoploss": 0
+            },
+            "tags": []
+          }
+        }
+      ]
+    },
+    "lhs_attribute": "LastTradedPrice",
+    "lhs_exchange": "NSE",
+    "lhs_tradingsymbol": "GOLDBEES",
+    "operator": "<=",
+    "rhs_type": "instrument",
+    "rhs_attribute": "LastTradedPrice",
+    "rhs_exchange": "BSE",
+    "rhs_tradingsymbol": "GOLDBEES",
+    "rhs_constant": 0,
+    "alert_count": 1,
+    "created_at": "2025-02-17 08:24:10",
+    "updated_at": "2025-02-17 09:15:20"
+  }
+}

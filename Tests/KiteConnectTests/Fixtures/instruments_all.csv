@@ -1,0 +1,3 @@
+instrument_token,exchange_token,tradingsymbol,name,last_price,expiry,strike,tick_size,lot_size,instrument_type,segment,exchange
+3813889,14898,CENTRALBK-BE,CENTRAL BANK OF INDIA,0.0,,0.0,0.05,1,EQ,NSE,NSE
+12073986,47164,BANKNIFTY18JAN23500CE,,2528.4,2018-01-25,23500.0,0.05,40,CE,NFO-OPT,NFO

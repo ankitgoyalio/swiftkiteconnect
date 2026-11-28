@@ -1,0 +1,19 @@
+{
+  "status": "success",
+  "data": {
+    "order_id": "1914227164488687616",
+    "children": [
+      {
+        "error": {
+          "code": 429,
+          "error_type": "SliceLimitException",
+          "message": "Slice limit reached.",
+          "data": {
+            "limits": [10, null],
+            "retryable": false
+          }
+        }
+      }
+    ]
+  }
+}
