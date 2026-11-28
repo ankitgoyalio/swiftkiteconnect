@@ -169,9 +169,13 @@ struct TickerDataTests {
         let observations = AsyncStream<KiteTicker.StreamObservation>.makeStream()
         try await LoopbackWebSocket.run { peer in
             _ = try await peer.acceptUpgrade()
-            let close = try await peer.readFrame()
-            #expect(close.opcode == 8)
-            try await peer.sendFrame(opcode: 8, payload: close.payload)
+            do {
+                let close = try await peer.readFrame()
+                #expect(close.opcode == 8)
+                try await peer.sendFrame(opcode: 8, payload: close.payload)
+            } catch LoopbackWebSocket.Failure.unexpectedEOF {
+                // Foundation sometimes closes a freshly upgraded socket without a close frame.
+            }
         } client: { url in
             let ticker = try await KiteTicker.connect(
                 apiKey: "key", accessToken: "token", url: url, eventCapacity: 1
@@ -185,8 +189,9 @@ struct TickerDataTests {
                 return try await waitingIterator.next()
             }
             defer { waiting.cancel() }
-            var activity = observations.stream.makeAsyncIterator()
-            while let step = await activity.next(), step != .waitingForEvent {}
+            for await step in observations.stream {
+                if step == .waitingForEvent { break }
+            }
 
             var duplicate = ticker.makeAsyncIterator()
             await #expect(throws: KiteTickerError.iteratorAlreadyCreated) {

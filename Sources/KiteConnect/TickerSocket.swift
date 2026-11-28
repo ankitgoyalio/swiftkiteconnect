@@ -55,15 +55,13 @@ final class TickerSocket: Sendable {
     }
 
     func receive(onReceive: @Sendable () -> Void) async throws -> URLSessionWebSocketTask.Message {
-        try await withTaskCancellationHandler {
-            do {
-                onReceive()
-                return try await task.receive()
-            } catch {
-                throw await failure(after: error)
-            }
-        } onCancel: {
-            close()
+        // The ticker owns shutdown and closes the socket to wake an active receive.
+        try Task.checkCancellation()
+        onReceive()
+        do {
+            return try await task.receive()
+        } catch {
+            throw await failure(after: error)
         }
     }
 

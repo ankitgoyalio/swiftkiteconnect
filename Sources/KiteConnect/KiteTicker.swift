@@ -38,6 +38,7 @@ public actor KiteTicker: AsyncSequence {
 
     deinit {
         receiveTask?.cancel()
+        socket?.close()
         reconnection?.cancel()
     }
 
