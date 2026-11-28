@@ -19,6 +19,14 @@ struct RESTRequest: Sendable {
         case json(Data)
     }
 
+    static func encodeJSON<Value: Encodable>(_ value: Value) throws -> Data {
+        do {
+            return try JSONEncoder().encode(value)
+        } catch {
+            throw KiteError.encoding(error)
+        }
+    }
+
     let method: Method
     let path: [String]
     let query: [URLQueryItem]

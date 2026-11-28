@@ -77,11 +77,10 @@ public struct GTTRequest: Equatable, Sendable {
             )
         }
 
-        let encoder = JSONEncoder()
         return .form([
             .init(name: "type", value: type),
-            .init(name: "condition", value: String(decoding: try encoder.encode(condition), as: UTF8.self)),
-            .init(name: "orders", value: String(decoding: try encoder.encode(orders), as: UTF8.self)),
+            .init(name: "condition", value: String(decoding: try RESTRequest.encodeJSON(condition), as: UTF8.self)),
+            .init(name: "orders", value: String(decoding: try RESTRequest.encodeJSON(orders), as: UTF8.self)),
         ])
     }
 

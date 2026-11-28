@@ -3,6 +3,25 @@ import KiteConnect
 import Testing
 
 struct MarginCalculationTests {
+    @Test func reportsUnencodableMarginRequestsAsKiteErrors() async throws {
+        try await HTTPStub.withSession(handler: { _ in
+            Issue.record("An unencodable request must not reach the network")
+            throw URLError(.badURL)
+        }, operation: { session, baseURL in
+            let kite = KiteConnectClient(
+                apiKey: "test-key", accessToken: "test-token", baseURL: baseURL, session: session
+            )
+            await #expect(throws: KiteError.self) {
+                try await kite.orderMargins([
+                    .init(
+                        exchange: "NSE", tradingSymbol: "INFY", transactionType: "BUY",
+                        variety: "regular", product: "CNC", orderType: "LIMIT", quantity: 1, price: .nan
+                    ),
+                ])
+            }
+        })
+    }
+
     @Test func estimatesIndividualOrderMargins() async throws {
         // https://github.com/zerodha/kiteconnect-mocks/blob/c7a81238f93b4057c07257823b1bfaf30cba9ae5/order_margins.json
         let fixture = try HTTPStub.fixture("order_margins.json")

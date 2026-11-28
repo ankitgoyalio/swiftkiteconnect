@@ -143,7 +143,7 @@ extension KiteConnectClient {
     public func createAlert(_ condition: AlertCondition, basket: AlertBasketCreate? = nil) async throws -> Alert {
         var fields = condition.form(type: basket == nil ? .simple : .ato)
         if let basket {
-            let json = try JSONEncoder().encode(basket)
+            let json = try RESTRequest.encodeJSON(basket)
             fields.append(.init(name: "basket", value: String(decoding: json, as: UTF8.self)))
         }
         return try await rest.send(.init(.post, path: ["alerts"], body: .form(fields)))
@@ -189,7 +189,7 @@ extension KiteConnectClient {
         case .ato(let operations):
             fields = condition.form(type: .ato)
             if let operations {
-                let json = try JSONEncoder().encode(BasketUpdate(items: operations))
+                let json = try RESTRequest.encodeJSON(BasketUpdate(items: operations))
                 fields.append(.init(name: "basket", value: String(decoding: json, as: UTF8.self)))
             }
         }

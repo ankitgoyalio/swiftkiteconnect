@@ -40,6 +40,24 @@ struct MarketDataTests {
         }
     }
 
+    @Test(arguments: ["/instruments", "/mf/instruments"])
+    func reportsSessionExpiryOnSuccessfulHTTPStatus(path: String) async throws {
+        let response = Data(#"{"status":"error","error_type":"TokenException","message":"expired"}"#.utf8)
+        try await withMarketResponse(path: path, body: response, contentType: "application/json") { kite in
+            do {
+                if path == "/instruments" {
+                    _ = try await kite.instruments()
+                } else {
+                    _ = try await kite.mutualFundInstruments()
+                }
+                Issue.record("Expected Kite's session error.")
+            } catch KiteError.service(let error) {
+                #expect(error.isSessionExpired)
+                #expect(error.statusCode == 200)
+            }
+        }
+    }
+
     @Test func preservesQuotedCSVContentAndEmptyFields() async throws {
         // Synthetic variant of the documented instrument header and an NFO futures row.
         let body = Data("""

@@ -7,6 +7,7 @@ public enum KiteError: Error {
     case service(KiteServiceError)
     case http(statusCode: Int)
     case transport(domain: String, code: Int)
+    case encoding(any Error)
     case decoding(any Error)
 }
 

@@ -192,7 +192,7 @@ extension KiteConnectClient {
             .post,
             path: ["margins", "orders"],
             query: query,
-            body: .json(JSONEncoder().encode(orders))
+            body: .json(RESTRequest.encodeJSON(orders))
         ))
     }
 
@@ -215,7 +215,7 @@ extension KiteConnectClient {
             .post,
             path: ["margins", "basket"],
             query: query,
-            body: .json(JSONEncoder().encode(orders))
+            body: .json(RESTRequest.encodeJSON(orders))
         ))
     }
 
@@ -224,7 +224,7 @@ extension KiteConnectClient {
         try await rest.send(.init(
             .post,
             path: ["charges", "orders"],
-            body: .json(JSONEncoder().encode(orders))
+            body: .json(RESTRequest.encodeJSON(orders))
         ))
     }
 }

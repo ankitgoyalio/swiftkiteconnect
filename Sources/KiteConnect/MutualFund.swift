@@ -202,7 +202,7 @@ extension KiteConnectClient {
 
     /// Retrieves the master list of mutual fund instruments available on Coin.
     public func mutualFundInstruments() async throws -> [MutualFundInstrument] {
-        let (data, _) = try await rest.sendRaw(.init(.get, path: ["mf", "instruments"]))
+        let data = try await rest.sendCSV(.init(.get, path: ["mf", "instruments"]))
         do {
             return try CSV.decode(
                 data,

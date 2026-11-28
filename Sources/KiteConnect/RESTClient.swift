@@ -19,7 +19,7 @@ struct RESTClient: Sendable {
         as type: Value.Type = Value.self,
         allowsOmittedStatus: Bool = false
     ) async throws -> Value {
-        let (data, response) = try await sendRaw(endpoint)
+        let (data, response) = try await perform(endpoint)
         do {
             let envelope = try JSONDecoder().decode(SuccessEnvelope<Value>.self, from: data)
             return try envelope.value(allowsOmittedStatus: allowsOmittedStatus)
@@ -31,8 +31,20 @@ struct RESTClient: Sendable {
         }
     }
 
-    /// Fetches a raw success payload, such as an instrument CSV, with the same HTTP error handling as send.
-    func sendRaw(_ endpoint: RESTRequest) async throws -> (data: Data, response: HTTPURLResponse) {
+    func sendCSV(_ endpoint: RESTRequest) async throws -> Data {
+        let (data, response) = try await perform(endpoint)
+        // Kite can return a JSON error envelope with HTTP 200 for an instrument CSV request.
+        let startsWithJSONObject = data.first { byte in
+            byte != 0x20 && byte != 0x09 && byte != 0x0A && byte != 0x0D
+        } == 0x7B
+        if response.mimeType == "application/json" || startsWithJSONObject,
+           let error = Self.serviceError(in: data, statusCode: response.statusCode) {
+            throw KiteError.service(error)
+        }
+        return data
+    }
+
+    private func perform(_ endpoint: RESTRequest) async throws -> (data: Data, response: HTTPURLResponse) {
         var request = try endpoint.urlRequest(baseURL: baseURL)
         if endpoint.authentication == .accessToken {
             guard let accessToken else { throw KiteError.missingAccessToken }

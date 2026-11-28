@@ -50,7 +50,7 @@ extension KiteConnectClient {
     }
 
     private func fetchInstruments(path: [String]) async throws -> [Instrument] {
-        let (data, _) = try await rest.sendRaw(.init(.get, path: path))
+        let data = try await rest.sendCSV(.init(.get, path: path))
         do {
             return try CSV.decode(data, requiredColumns: Instrument.columns, transform: Instrument.init(row:))
         } catch {
