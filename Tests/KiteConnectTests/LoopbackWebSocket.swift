@@ -5,11 +5,18 @@ import Network
 /// A raw loopback server so tests exercise Foundation's actual WebSocket handshake and frames.
 enum LoopbackWebSocket {
     enum Failure: Error {
-        case timedOut, missingPort, unexpectedEOF, invalidHandshake, invalidFrame
+        case timedOut, missingPort, unexpectedEOF, invalidHandshake, invalidFrame, unexpectedConnection
     }
 
     static func run(
         server: @escaping @Sendable (Peer) async throws -> Void,
+        client: @escaping @Sendable (URL) async throws -> Void
+    ) async throws {
+        try await run(servers: [server], client: client)
+    }
+
+    static func run(
+        servers: [@Sendable (Peer) async throws -> Void],
         client: @escaping @Sendable (URL) async throws -> Void
     ) async throws {
         let parameters = NWParameters.tcp
@@ -56,14 +63,22 @@ enum LoopbackWebSocket {
             }
             tasks.addTask {
                 var connections = accepted.stream.makeAsyncIterator()
-                guard let connection = await connections.next() else { throw Failure.unexpectedEOF }
-                connection.start(queue: queue)
-                defer { connection.cancel() }
-                try await server(Peer(connection: connection))
+                for server in servers {
+                    guard let connection = await connections.next() else { throw Failure.unexpectedEOF }
+                    connection.start(queue: queue)
+                    defer { connection.cancel() }
+                    try await server(Peer(connection: connection))
+                }
             }
             defer { tasks.cancelAll() }
             try await tasks.next()
             try await tasks.next()
+            accepted.continuation.finish()
+            var remaining = accepted.stream.makeAsyncIterator()
+            if let connection = await remaining.next() {
+                connection.cancel()
+                throw Failure.unexpectedConnection
+            }
         }
     }
 
@@ -99,6 +114,10 @@ enum LoopbackWebSocket {
             _ = try await requestLines()
             let response = "HTTP/1.1 \(status)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
             try await write(Data(response.utf8))
+        }
+
+        func readUpgradeRequest() async throws {
+            _ = try await requestLines()
         }
 
         struct Frame {

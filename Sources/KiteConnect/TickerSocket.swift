@@ -4,23 +4,30 @@ import Foundation
 final class TickerSocket: Sendable {
     private let session: URLSession
     private let task: URLSessionWebSocketTask
+    private let termination: Task<KiteTickerError?, Never>
 
-    private init(url: URL, delegate: Delegate) {
+    private init(url: URL, upgrade: AsyncThrowingStream<Void, Error>.Continuation) {
+        let ended = AsyncStream<KiteTickerError>.makeStream(bufferingPolicy: .bufferingOldest(1))
+        let delegate = Delegate(upgrade: upgrade, termination: ended.continuation)
         session = URLSession(configuration: .ephemeral, delegate: delegate, delegateQueue: nil)
         task = session.webSocketTask(with: url)
+        termination = Task {
+            var events = ended.stream.makeAsyncIterator()
+            return await events.next()
+        }
     }
 
     deinit {
+        termination.cancel()
         if task.state == .running {
             close()
         }
     }
 
-    static func connect(apiKey: String, accessToken: String, url: URL) async throws -> TickerSocket {
+    static func connect(to authenticatedURL: URL) async throws -> TickerSocket {
         try Task.checkCancellation()
-        let authenticatedURL = try authenticatedURL(apiKey: apiKey, accessToken: accessToken, url: url)
         let upgrade = AsyncThrowingStream<Void, Error>.makeStream()
-        let socket = TickerSocket(url: authenticatedURL, delegate: Delegate(upgrade: upgrade.continuation))
+        let socket = TickerSocket(url: authenticatedURL, upgrade: upgrade.continuation)
         return try await withTaskCancellationHandler {
             socket.task.resume()
             var result = upgrade.stream.makeAsyncIterator()
@@ -34,11 +41,16 @@ final class TickerSocket: Sendable {
     }
 
     func send(_ command: TickerCommand) async throws {
+        try Task.checkCancellation()
         let data = try JSONEncoder().encode(command)
-        do {
-            try await task.send(.string(String(decoding: data, as: UTF8.self)))
-        } catch {
-            throw Self.failure(for: task, error: error)
+        try await withTaskCancellationHandler {
+            do {
+                try await task.send(.string(String(decoding: data, as: UTF8.self)))
+            } catch {
+                throw await failure(after: error)
+            }
+        } onCancel: {
+            close()
         }
     }
 
@@ -47,7 +59,7 @@ final class TickerSocket: Sendable {
             do {
                 return try await task.receive()
             } catch {
-                throw Self.failure(for: task, error: error)
+                throw await failure(after: error)
             }
         } onCancel: {
             close()
@@ -58,7 +70,12 @@ final class TickerSocket: Sendable {
         task.cancel(with: .normalClosure, reason: nil)
     }
 
-    private static func authenticatedURL(apiKey: String, accessToken: String, url: URL) throws -> URL {
+    private func failure(after error: any Error) async -> KiteTickerError {
+        // Foundation can fail the I/O before making the peer's close code available.
+        await termination.value ?? Self.failure(for: task, error: error)
+    }
+
+    static func authenticatedURL(apiKey: String, accessToken: String, url: URL) throws -> URL {
         guard !accessToken.isEmpty else { throw KiteTickerError.missingAccessToken }
         guard var components = URLComponents(url: url, resolvingAgainstBaseURL: true),
               let host = components.host, !host.isEmpty,
@@ -97,9 +114,14 @@ final class TickerSocket: Sendable {
 
     private final class Delegate: NSObject, URLSessionWebSocketDelegate {
         let upgrade: AsyncThrowingStream<Void, Error>.Continuation
+        let termination: AsyncStream<KiteTickerError>.Continuation
 
-        init(upgrade: AsyncThrowingStream<Void, Error>.Continuation) {
+        init(
+            upgrade: AsyncThrowingStream<Void, Error>.Continuation,
+            termination: AsyncStream<KiteTickerError>.Continuation
+        ) {
             self.upgrade = upgrade
+            self.termination = termination
         }
 
         func urlSession(
@@ -113,10 +135,23 @@ final class TickerSocket: Sendable {
 
         func urlSession(
             _ session: URLSession,
+            webSocketTask: URLSessionWebSocketTask,
+            didCloseWith closeCode: URLSessionWebSocketTask.CloseCode,
+            reason: Data?
+        ) {
+            termination.yield(.socketClosed(code: closeCode.rawValue))
+            termination.finish()
+        }
+
+        func urlSession(
+            _ session: URLSession,
             task: URLSessionTask,
             didCompleteWithError error: (any Error)?
         ) {
-            upgrade.finish(throwing: TickerSocket.failure(for: task, error: error))
+            let failure = TickerSocket.failure(for: task, error: error)
+            termination.yield(failure)
+            termination.finish()
+            upgrade.finish(throwing: failure)
             session.finishTasksAndInvalidate()
         }
 
