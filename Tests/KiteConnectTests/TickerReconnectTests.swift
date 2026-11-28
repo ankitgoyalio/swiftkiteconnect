@@ -47,6 +47,47 @@ struct TickerReconnectTests {
         }
     }
 
+    @Test func enforcesDistinctSubscriptionLimitAtomicallyAcrossReconnect() async throws {
+        let disconnect = AsyncStream<Void>.makeStream()
+        let initial = Array(UInt32(1)...3000)
+        let retained = Array(UInt32(1)...2999)
+        try await LoopbackWebSocket.run(servers: [
+            { peer in
+                _ = try await peer.acceptUpgrade()
+                try await Self.expectCommand(#"{"a":"subscribe","v":\#(initial)}"#, from: peer)
+                try await Self.expectCommand(#"{"a":"mode","v":["ltp",\#(initial)]}"#, from: peer)
+                var signal = disconnect.stream.makeAsyncIterator()
+                _ = await signal.next()
+            },
+            { peer in
+                _ = try await peer.acceptUpgrade()
+                try await Self.expectCommand(#"{"a":"subscribe","v":\#(retained + [3003])}"#, from: peer)
+                try await Self.expectCommand(#"{"a":"mode","v":["ltp",\#(retained)]}"#, from: peer)
+                try await Self.expectCommand(#"{"a":"mode","v":["full",[3003]]}"#, from: peer)
+                let close = try await peer.readFrame()
+                #expect(close.opcode == 8)
+            },
+        ]) { url in
+            let ticker = try await KiteTicker.connect(apiKey: "key", accessToken: "token", url: url)
+            defer { Task { await ticker.close() } }
+            var events = ticker.makeAsyncIterator()
+            try #expect(await events.next() == .connected)
+            try await ticker.subscribe(initial + [1], mode: .ltp)
+            await #expect(throws: KiteTickerError.subscriptionLimitExceeded) {
+                try await ticker.subscribe([1, 3001], mode: .quote)
+            }
+            disconnect.continuation.yield(())
+            try await Self.expectInterruption(from: &events)
+            await #expect(throws: KiteTickerError.subscriptionLimitExceeded) {
+                try await ticker.subscribe([2, 3002], mode: .quote)
+            }
+            try await ticker.unsubscribe([3000])
+            try await ticker.subscribe([3003, 3003], mode: .full)
+            try #expect(await events.next() == .recovered)
+            await ticker.close()
+        }
+    }
+
     @Test func treatsAWebSocketPolicyCloseAsTerminal() async throws {
         let connected = AsyncStream<Void>.makeStream()
         try await LoopbackWebSocket.run { peer in
@@ -65,6 +106,109 @@ struct TickerReconnectTests {
                 _ = try await events.next()
             }
             try #expect(await events.next() == nil)
+        }
+    }
+
+    @Test(arguments: [false, true]) func closesWithoutDemandAndDrainsTheFullFIFO(policyClose: Bool) async throws {
+        let acknowledged = AsyncStream<Void>.makeStream()
+        try await LoopbackWebSocket.run { peer in
+            _ = try await peer.acceptUpgrade()
+            for token in UInt8(100)...162 {
+                try await peer.sendFrame(opcode: 2, payload: Self.tick(for: token))
+            }
+            // A paused ticker probes the connection once its 64-event FIFO is full.
+            let ping = try await peer.readFrame()
+            #expect(ping.opcode == 9)
+            if policyClose {
+                try await peer.sendFrame(opcode: 8, payload: Data([0x03, 0xF0]))
+                let close = try await peer.readFrame()
+                #expect(close.opcode == 8)
+                acknowledged.continuation.yield(())
+            } else {
+                try await peer.sendFrame(opcode: 10, payload: ping.payload)
+                acknowledged.continuation.yield(())
+                let close = try await peer.readFrame()
+                #expect(close.opcode == 8)
+                try await peer.sendFrame(opcode: 8, payload: close.payload)
+            }
+        } client: { url in
+            let ticker = try await KiteTicker.connect(apiKey: "key", accessToken: "token", url: url)
+            defer { Task { await ticker.close() } }
+            var peer = acknowledged.stream.makeAsyncIterator()
+            try #require(await peer.next() != nil)
+
+            if policyClose {
+                // This request fails validation before writing to any open socket.
+                let overLimit = Array(UInt32(1)...3001)
+                while true {
+                    do {
+                        try await ticker.subscribe(overLimit, mode: .ltp)
+                        Issue.record("An over-limit subscription succeeded")
+                        return
+                    } catch KiteTickerError.subscriptionLimitExceeded {
+                        try await Task.sleep(for: .milliseconds(20))
+                    } catch KiteTickerError.closed {
+                        break
+                    }
+                }
+            } else {
+                await ticker.close()
+            }
+
+            var events = ticker.makeAsyncIterator()
+            try #expect(await events.next() == .connected)
+            for token in UInt32(100)...162 {
+                try #expect(await events.next() == .ticks([.init(instrumentToken: token, lastPrice: 1)]))
+            }
+            if policyClose {
+                await #expect(throws: KiteTickerError.socketClosed(code: 1008)) {
+                    _ = try await events.next()
+                }
+            }
+            try #expect(await events.next() == nil)
+        }
+    }
+
+    @Test func retriesAnInitialTransientUpgradeAfterBackoff() async throws {
+        let rejected = AsyncStream<ContinuousClock.Instant>.makeStream()
+        try await LoopbackWebSocket.run(servers: [
+            { peer in
+                rejected.continuation.yield(.now)
+                try await peer.rejectUpgrade(status: "503 Service Unavailable")
+            },
+            { peer in
+                var times = rejected.stream.makeAsyncIterator()
+                let firstAttempt = try #require(await times.next())
+                #expect(firstAttempt.duration(to: .now) >= .seconds(1))
+                _ = try await peer.acceptUpgrade()
+                _ = try? await peer.readFrame()
+            },
+        ]) { url in
+            let ticker = try await KiteTicker.connect(apiKey: "key", accessToken: "token", url: url)
+            var events = ticker.makeAsyncIterator()
+            try #expect(await events.next() == .connected)
+            await ticker.close()
+            try #expect(await events.next() == nil)
+        }
+    }
+
+    @Test func cancellingInitialBackoffPreventsAnotherUpgrade() async throws {
+        let rejected = AsyncStream<Void>.makeStream()
+        try await LoopbackWebSocket.run { peer in
+            try await peer.rejectUpgrade(status: "503 Service Unavailable")
+            rejected.continuation.yield(())
+        } client: { url in
+            let connection = Task {
+                try await KiteTicker.connect(apiKey: "key", accessToken: "token", url: url)
+            }
+            defer { connection.cancel() }
+            var rejection = rejected.stream.makeAsyncIterator()
+            try #require(await rejection.next() != nil)
+            try await Task.sleep(for: .milliseconds(100))
+            connection.cancel()
+            await #expect(throws: CancellationError.self) { _ = try await connection.value }
+            // Keep the listener open past the first retry deadline.
+            try await Task.sleep(for: .milliseconds(1100))
         }
     }
 

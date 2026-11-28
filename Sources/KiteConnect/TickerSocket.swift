@@ -47,7 +47,7 @@ final class TickerSocket: Sendable {
             do {
                 try await task.send(.string(String(decoding: data, as: UTF8.self)))
             } catch {
-                throw await failure(after: error)
+                throw Self.failure(for: task, error: error)
             }
         } onCancel: {
             close()
@@ -67,6 +67,66 @@ final class TickerSocket: Sendable {
 
     func close() {
         task.cancel(with: .normalClosure, reason: nil)
+    }
+
+    func pingFailure() async -> KiteTickerError? {
+        let reply = AsyncStream<KiteTickerError?>.makeStream(bufferingPolicy: .bufferingOldest(1))
+        task.sendPing { [task] error in
+            reply.continuation.yield(error.map { Self.failure(for: task, error: $0) })
+            reply.continuation.finish()
+        }
+        // Foundation can drop the pong callback when a peer closes with a ping in flight.
+        return await withTaskGroup(of: KiteTickerError?.self) { group in
+            group.addTask {
+                var replies = reply.stream.makeAsyncIterator()
+                return await replies.next() ?? nil
+            }
+            group.addTask {
+                do {
+                    try await Task.sleep(for: .seconds(3))
+                    return .transport(domain: NSURLErrorDomain, code: URLError.timedOut.rawValue)
+                } catch {
+                    return nil
+                }
+            }
+            let failure = await group.next() ?? nil
+            group.cancelAll()
+            return failure
+        }
+    }
+
+    func scheduleFailureClose() -> Task<Void, Never> {
+        Task {
+            do {
+                try await Task.sleep(for: .seconds(1))
+                close()
+            } catch {
+                // The receive resolved the failure.
+            }
+        }
+    }
+
+    func resolveReplayFailure(_ reported: KiteTickerError) async -> KiteTickerError {
+        guard case .transport = reported, !Task.isCancelled else { return reported }
+        let deadline = scheduleFailureClose()
+        defer { deadline.cancel() }
+        // A failed replay has no active reader to obtain the peer's close code.
+        return await withTaskCancellationHandler {
+            do {
+                _ = try await receive {}
+                return reported
+            } catch let failure as KiteTickerError {
+                return failure
+            } catch {
+                return reported
+            }
+        } onCancel: {
+            close()
+        }
+    }
+
+    func terminationFailure() async -> KiteTickerError? {
+        await termination.value
     }
 
     private func failure(after error: any Error) async -> KiteTickerError {

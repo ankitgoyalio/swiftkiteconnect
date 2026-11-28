@@ -124,111 +124,72 @@ struct TickerDataTests {
         }
     }
 
-    @Test func pausesSocketReadsAtCapacityAndDrainsBufferedOrdersOnClose() async throws {
+    @Test func reconnectsWhileReadsArePausedAndPreservesTheBufferedOrder() async throws {
         let observations = AsyncStream<KiteTicker.StreamObservation>.makeStream()
+        let bufferFilled = AsyncStream<Void>.makeStream()
+        let stillPaused = AsyncStream<Void>.makeStream()
+        let replayed = AsyncStream<Void>.makeStream()
         let update = try Self.orderUpdate()
         let ticks = Self.frame([Self.words([408_065, 157_315])])
 
-        try await LoopbackWebSocket.run { peer in
-            _ = try await peer.acceptUpgrade()
-            try await peer.sendFrame(opcode: 2, payload: ticks)
-            try await peer.sendFrame(opcode: 1, payload: update)
-            let close = try await peer.readFrame()
-            #expect(close.opcode == 8)
-            try await peer.sendFrame(opcode: 8, payload: close.payload)
-        } client: { url in
-            let ticker = try await KiteTicker.connect(
-                apiKey: "key", accessToken: "token", url: url, eventCapacity: 1
-            ) { observations.continuation.yield($0) }
-            defer { Task { await ticker.close() } }
-            var activity = observations.stream.makeAsyncIterator()
-            var events = ticker.makeAsyncIterator()
-
-            // The producer reports a full buffer without issuing another socket receive.
-            try #require(await activity.next() == .bufferFull)
-            try #expect(await events.next() == .connected)
-            try #require(await activity.next() == .willReceive)
-            try #require(await activity.next() == .bufferFull)
-            try #expect(await events.next() == .ticks([.init(instrumentToken: 408_065, lastPrice: 1573.15)]))
-            try #require(await activity.next() == .willReceive)
-            try #require(await activity.next() == .bufferFull)
-
-            await ticker.close()
-            guard case .orderUpdate(let order) = try await events.next() else {
-                Issue.record("Expected close to drain the buffered order")
-                return
-            }
-            #expect(order.orderID == "220303000308932")
-            try #expect(await events.next() == nil)
-            observations.continuation.finish()
-            #expect(await activity.next() == nil)
-        }
-    }
-
-    @Test func rejectsDuplicateConsumptionAndClosesWhenParkedNextIsCancelled() async throws {
-        let observations = AsyncStream<KiteTicker.StreamObservation>.makeStream()
-        try await LoopbackWebSocket.run { peer in
-            _ = try await peer.acceptUpgrade()
-            do {
-                let close = try await peer.readFrame()
-                #expect(close.opcode == 8)
-                try await peer.sendFrame(opcode: 8, payload: close.payload)
-            } catch LoopbackWebSocket.Failure.unexpectedEOF {
-                // Foundation sometimes closes a freshly upgraded socket without a close frame.
-            }
-        } client: { url in
-            let ticker = try await KiteTicker.connect(
-                apiKey: "key", accessToken: "token", url: url, eventCapacity: 1
-            ) { observations.continuation.yield($0) }
-            defer { Task { await ticker.close() } }
-            var events = ticker.makeAsyncIterator()
-            try #expect(await events.next() == .connected)
-
-            let waiting = Task { [events] in
-                var waitingIterator = events
-                return try await waitingIterator.next()
-            }
-            defer { waiting.cancel() }
-            for await step in observations.stream {
-                if step == .waitingForEvent { break }
-            }
-
-            var duplicate = ticker.makeAsyncIterator()
-            await #expect(throws: KiteTickerError.iteratorAlreadyCreated) {
-                _ = try await duplicate.next()
-            }
-            await #expect(throws: KiteTickerError.concurrentNext) {
-                _ = try await events.next()
-            }
-
-            waiting.cancel()
-            await #expect(throws: CancellationError.self) { _ = try await waiting.value }
-            try #expect(await events.next() == nil)
-        }
-    }
-
-    @Test func drainsBufferedTicksBeforeReportingTerminalFailure() async throws {
-        let observations = AsyncStream<KiteTicker.StreamObservation>.makeStream()
-        let ticks = Self.frame([Self.words([408_065, 157_315])])
-        try await LoopbackWebSocket.run { peer in
-            _ = try await peer.acceptUpgrade()
-            try await peer.sendFrame(opcode: 2, payload: ticks)
-            try await peer.sendFrame(opcode: 8, payload: Data([0x03, 0xF0]))
-            _ = try? await peer.readFrame()
-        } client: { url in
+        try await LoopbackWebSocket.run(servers: [
+            { peer in
+                _ = try await peer.acceptUpgrade()
+                _ = try await peer.readFrame()
+                _ = try await peer.readFrame()
+                try await peer.sendFrame(opcode: 1, payload: update)
+                var full = bufferFilled.stream.makeAsyncIterator()
+                _ = await full.next()
+                let ping = try await peer.readFrame()
+                #expect(ping.opcode == 9)
+                try await peer.sendFrame(opcode: 10, payload: ping.payload)
+                stillPaused.continuation.yield(())
+                _ = await full.next()
+            },
+            { peer in
+                _ = try await peer.acceptUpgrade()
+                let subscribe = try await peer.readFrame()
+                let command = try #require(JSONSerialization.jsonObject(with: subscribe.payload) as? NSDictionary)
+                #expect(command == ["a": "subscribe", "v": [408_065]] as NSDictionary)
+                _ = try await peer.readFrame()
+                try await peer.sendFrame(opcode: 2, payload: ticks)
+                replayed.continuation.yield(())
+                _ = try? await peer.readFrame()
+            },
+        ]) { url in
             let ticker = try await KiteTicker.connect(
                 apiKey: "key", accessToken: "token", url: url, eventCapacity: 2
             ) { observations.continuation.yield($0) }
             defer { Task { await ticker.close() } }
+            try await ticker.subscribe([408_065], mode: .ltp)
+
+            // A wire write alone cannot reveal whether Foundation was asked for another receive.
             var activity = observations.stream.makeAsyncIterator()
             try #require(await activity.next() == .willReceive)
             try #require(await activity.next() == .bufferFull)
+            bufferFilled.continuation.yield(())
+            var paused = stillPaused.stream.makeAsyncIterator()
+            try #require(await paused.next() != nil)
+            observations.continuation.finish()
+            #expect(await activity.next() == nil)
+            bufferFilled.continuation.yield(())
+
+            var replay = replayed.stream.makeAsyncIterator()
+            try #require(await replay.next() != nil)
             var events = ticker.makeAsyncIterator()
             try #expect(await events.next() == .connected)
-            try #expect(await events.next() == .ticks([.init(instrumentToken: 408_065, lastPrice: 1573.15)]))
-            await #expect(throws: KiteTickerError.socketClosed(code: 1008)) {
-                _ = try await events.next()
+            guard case .orderUpdate(let order) = try await events.next() else {
+                Issue.record("Expected the buffered order before the interruption")
+                return
             }
+            #expect(order.orderID == "220303000308932")
+            guard case .interrupted = try await events.next() else {
+                Issue.record("Expected an interruption after the buffered order")
+                return
+            }
+            try #expect(await events.next() == .recovered)
+            try #expect(await events.next() == .ticks([.init(instrumentToken: 408_065, lastPrice: 1573.15)]))
+            await ticker.close()
             try #expect(await events.next() == nil)
         }
     }

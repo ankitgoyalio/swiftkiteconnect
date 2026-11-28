@@ -98,6 +98,47 @@ struct TickerTests {
         }
     }
 
+    @Test func rejectsDuplicateConsumptionAndClosesWhenParkedNextIsCancelled() async throws {
+        try await LoopbackWebSocket.run { peer in
+            _ = try await peer.acceptUpgrade()
+            do {
+                let close = try await peer.readFrame()
+                #expect(close.opcode == 8)
+                try await peer.sendFrame(opcode: 8, payload: close.payload)
+            } catch LoopbackWebSocket.Failure.unexpectedEOF {
+                // Foundation sometimes closes a freshly upgraded socket without a close frame.
+            }
+        } client: { url in
+            let ticker = try await KiteTicker.connect(apiKey: "key", accessToken: "token", url: url)
+            defer { Task { await ticker.close() } }
+            var events = ticker.makeAsyncIterator()
+            try #expect(await events.next() == .connected)
+
+            var duplicate = ticker.makeAsyncIterator()
+            await #expect(throws: KiteTickerError.iteratorAlreadyCreated) {
+                _ = try await duplicate.next()
+            }
+
+            await withThrowingTaskGroup(of: KiteTicker.Event?.self) { reads in
+                for _ in 0..<2 {
+                    reads.addTask { [events] in
+                        var iterator = events
+                        return try await iterator.next()
+                    }
+                }
+                // Either task can begin first. The other proves a next call is parked.
+                await #expect(throws: KiteTickerError.concurrentNext) {
+                    _ = try await reads.next()
+                }
+                reads.cancelAll()
+                await #expect(throws: CancellationError.self) {
+                    _ = try await reads.next()
+                }
+            }
+            try #expect(await events.next() == nil)
+        }
+    }
+
     @Test func reportsHandshakeRejectionWithoutCredentials() async throws {
         try await LoopbackWebSocket.run { peer in
             try await peer.rejectUpgrade(status: "403 Forbidden")
