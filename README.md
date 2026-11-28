@@ -30,6 +30,34 @@ Your app owns browser login, Access Token storage, and session recovery. In a di
 
 Order placement requires network egress through a static IP registered with Zerodha. Your app controls order routing and REST retries. If an order write times out, query the order book to reconcile the outcome before deciding whether to submit again. [Zerodha static IP requirements](https://support.zerodha.com/category/trading-and-markets/general-kite/kite-api/articles/static-ip)
 
+On your backend, call `KiteConnectClient.exchangeRequestToken(_:apiKey:apiSecret:)` to obtain a `UserSession`. Call `kite.invalidateAccessToken()` to invalidate the current session explicitly. Your app manages its stored credentials. [Kite user and session API](https://kite.trade/docs/connect/v3/user/)
+
+## Stream market data
+
+```swift
+let ticker = try await KiteTicker.connect(apiKey: apiKey, accessToken: accessToken)
+try await ticker.subscribe([408065], mode: .ltp)
+
+for try await event in ticker {
+    if case .ticks(let ticks) = event {
+        for tick in ticks { print(tick.instrumentToken, tick.lastPrice) }
+    }
+}
+```
+
+Use one iterator per ticker. A transient disconnect emits `.interrupted`, and the ticker emits `.recovered` after restoring the latest requested subscriptions and modes. Reconcile any data missed during the gap through the REST API. Call `await ticker.close()` to end the stream. [Kite WebSocket API](https://kite.trade/docs/connect/v3/websocket/)
+
+## Verify HTTP Postbacks
+
+Host the registered Postback receiver on your backend. Decode the raw HTTP request body and verify Kite's checksum with the API secret. The checksum covers the order ID and order timestamp. [Kite Postback checksum](https://kite.trade/docs/connect/v3/postbacks/#checksum)
+
+```swift
+let postback = try Postback.decode(requestBody)
+if postback.verifyChecksum(apiSecret: apiSecret) {
+    print(postback.orderID)
+}
+```
+
 ## Develop and test
 
 Run `swift test` from the package root on macOS. The contract tests run without Kite Connect credentials. REST test fixtures use Zerodha's mock data pinned at `c7a81238f93b4057c07257823b1bfaf30cba9ae5`. [Pinned Zerodha fixtures](https://github.com/zerodha/kiteconnect-mocks/tree/c7a81238f93b4057c07257823b1bfaf30cba9ae5)
