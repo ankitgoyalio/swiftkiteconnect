@@ -1,0 +1,5 @@
+{
+  "status": "error",
+  "error_type": "TokenException",
+  "message": "Token is invalid or has expired."
+}
