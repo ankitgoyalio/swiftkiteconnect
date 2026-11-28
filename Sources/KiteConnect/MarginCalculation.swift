@@ -4,10 +4,10 @@ import Foundation
 public struct MarginOrder: Encodable, Equatable, Sendable {
     public let exchange: String
     public let tradingSymbol: String
-    public let transactionType: String
-    public let variety: String
-    public let product: String
-    public let orderType: String
+    public let transactionType: TransactionType
+    public let variety: OrderVariety
+    public let product: OrderProduct
+    public let orderType: OrderType
     public let quantity: Int64
     public let price: Double?
     public let triggerPrice: Double?
@@ -17,10 +17,10 @@ public struct MarginOrder: Encodable, Equatable, Sendable {
     public init(
         exchange: String,
         tradingSymbol: String,
-        transactionType: String,
-        variety: String,
-        product: String,
-        orderType: String,
+        transactionType: TransactionType,
+        variety: OrderVariety,
+        product: OrderProduct,
+        orderType: OrderType,
         quantity: Int64,
         price: Double? = nil,
         triggerPrice: Double? = nil
@@ -50,10 +50,10 @@ public struct ChargeOrder: Encodable, Equatable, Sendable {
     public let orderID: String
     public let exchange: String
     public let tradingSymbol: String
-    public let transactionType: String
-    public let variety: String
-    public let product: String
-    public let orderType: String
+    public let transactionType: TransactionType
+    public let variety: OrderVariety
+    public let product: OrderProduct
+    public let orderType: OrderType
     public let quantity: Int64
     public let averagePrice: Double
 
@@ -63,10 +63,10 @@ public struct ChargeOrder: Encodable, Equatable, Sendable {
         orderID: String,
         exchange: String,
         tradingSymbol: String,
-        transactionType: String,
-        variety: String,
-        product: String,
-        orderType: String,
+        transactionType: TransactionType,
+        variety: OrderVariety,
+        product: OrderProduct,
+        orderType: OrderType,
         quantity: Int64,
         averagePrice: Double
     ) {
@@ -139,10 +139,10 @@ public struct BasketMargins: Decodable, Equatable, Sendable {
 public struct OrderCharge: Decodable, Equatable, Sendable {
     public let exchange: String
     public let tradingSymbol: String
-    public let transactionType: String
-    public let variety: String
-    public let product: String
-    public let orderType: String
+    public let transactionType: TransactionType
+    public let variety: OrderVariety
+    public let product: OrderProduct
+    public let orderType: OrderType
     public let quantity: Int64
     public let price: Double
     public let charges: ChargeBreakdown

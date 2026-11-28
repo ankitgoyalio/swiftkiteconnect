@@ -13,6 +13,16 @@
             "retryable": false
           }
         }
+      },
+      {
+        "error": {
+          "code": 400,
+          "error_type": "MarginException",
+          "message": "Insufficient funds."
+        }
+      },
+      {
+        "order_id": "1914227164681625600"
       }
     ]
   }

@@ -14,8 +14,8 @@ struct MarginCalculationTests {
             await #expect(throws: KiteError.self) {
                 try await kite.orderMargins([
                     .init(
-                        exchange: "NSE", tradingSymbol: "INFY", transactionType: "BUY",
-                        variety: "regular", product: "CNC", orderType: "LIMIT", quantity: 1, price: .nan
+                        exchange: "NSE", tradingSymbol: "INFY", transactionType: .buy,
+                        variety: .regular, product: .cnc, orderType: .limit, quantity: 1, price: .nan
                     ),
                 ])
             }
@@ -36,8 +36,8 @@ struct MarginCalculationTests {
         ) { kite in
             let margins = try await kite.orderMargins([
                 .init(
-                    exchange: "NSE", tradingSymbol: "INFY", transactionType: "BUY",
-                    variety: "regular", product: "CNC", orderType: "MARKET", quantity: 1,
+                    exchange: "NSE", tradingSymbol: "INFY", transactionType: .buy,
+                    variety: .regular, product: .cnc, orderType: .market, quantity: 1,
                     price: 0, triggerPrice: 0
                 ),
             ])
@@ -77,8 +77,8 @@ struct MarginCalculationTests {
         ) { kite in
             let margins = try await kite.orderMargins([
                 .init(
-                    exchange: "NSE", tradingSymbol: "INFY", transactionType: "BUY",
-                    variety: "regular", product: "CNC", orderType: "SL", quantity: 1,
+                    exchange: "NSE", tradingSymbol: "INFY", transactionType: .buy,
+                    variety: .regular, product: .cnc, orderType: .stopLoss, quantity: 1,
                     price: 1500.25, triggerPrice: 1499.75
                 ),
             ], compact: true)
@@ -109,12 +109,12 @@ struct MarginCalculationTests {
         ) { kite in
             let basket = try await kite.basketMargins([
                 .init(
-                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20600CE", transactionType: "SELL",
-                    variety: "regular", product: "NRML", orderType: "MARKET", quantity: 75
+                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20600CE", transactionType: .sell,
+                    variety: .regular, product: .nrml, orderType: .market, quantity: 75
                 ),
                 .init(
-                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20700CE", transactionType: "BUY",
-                    variety: "regular", product: "NRML", orderType: "MARKET", quantity: 75
+                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20700CE", transactionType: .buy,
+                    variety: .regular, product: .nrml, orderType: .market, quantity: 75
                 ),
             ], considerPositions: true)
             #expect(basket.initial.total == 96504.975)
@@ -150,12 +150,12 @@ struct MarginCalculationTests {
         ) { kite in
             let basket = try await kite.basketMargins([
                 .init(
-                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20600CE", transactionType: "SELL",
-                    variety: "regular", product: "NRML", orderType: "MARKET", quantity: 75
+                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20600CE", transactionType: .sell,
+                    variety: .regular, product: .nrml, orderType: .market, quantity: 75
                 ),
                 .init(
-                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20700CE", transactionType: "BUY",
-                    variety: "regular", product: "NRML", orderType: "MARKET", quantity: 75
+                    exchange: "NFO", tradingSymbol: "NIFTY23JUL20700CE", transactionType: .buy,
+                    variety: .regular, product: .nrml, orderType: .market, quantity: 75
                 ),
             ], considerPositions: false, compact: true)
             #expect(basket.initial.total == 96504.975)
@@ -186,22 +186,22 @@ struct MarginCalculationTests {
         ) { kite in
             let notes = try await kite.orderCharges([
                 .init(
-                    orderID: "111111111", exchange: "NSE", tradingSymbol: "SBIN", transactionType: "BUY",
-                    variety: "regular", product: "CNC", orderType: "MARKET", quantity: 1, averagePrice: 560
+                    orderID: "111111111", exchange: "NSE", tradingSymbol: "SBIN", transactionType: .buy,
+                    variety: .regular, product: .cnc, orderType: .market, quantity: 1, averagePrice: 560
                 ),
                 .init(
-                    orderID: "2222222222", exchange: "MCX", tradingSymbol: "GOLDPETAL23JULFUT", transactionType: "SELL",
-                    variety: "regular", product: "NRML", orderType: "LIMIT", quantity: 1, averagePrice: 5862
+                    orderID: "2222222222", exchange: "MCX", tradingSymbol: "GOLDPETAL23JULFUT", transactionType: .sell,
+                    variety: .regular, product: .nrml, orderType: .limit, quantity: 1, averagePrice: 5862
                 ),
             ])
             #expect(notes.map(\.tradingSymbol) == ["SBIN", "GOLDPETAL23JULFUT"])
             #expect(notes.map(\.charges.transactionTaxType) == ["stt", "ctt"])
             let note = try #require(notes.last)
             #expect(note.exchange == "MCX")
-            #expect(note.transactionType == "SELL")
-            #expect(note.variety == "regular")
-            #expect(note.product == "NRML")
-            #expect(note.orderType == "LIMIT")
+            #expect(note.transactionType == .sell)
+            #expect(note.variety == .regular)
+            #expect(note.product == .nrml)
+            #expect(note.orderType == .limit)
             #expect(note.quantity == 1)
             #expect(note.price == 5862)
             #expect(note.charges.transactionTax == 0.5862)

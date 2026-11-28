@@ -164,8 +164,11 @@ struct OrderWriteTests {
                 exchange: "NFO", tradingSymbol: "NIFTY2580724400CE", transactionType: .buy,
                 orderType: .market, quantity: 5_000, product: .nrml, autoslice: true
             ))
-            let child = try #require(result.children?.first)
-            guard case let .failed(error) = child else {
+            #expect(result.orderID == "1914227164488687616")
+            let children = try #require(result.children)
+            try #require(children.count == 3)
+            guard case let .failed(error) = children[0],
+                  case let .failed(errorWithoutData) = children[1] else {
                 Issue.record("Expected the slice to fail.")
                 return
             }
@@ -177,6 +180,9 @@ struct OrderWriteTests {
                 "limits": .array([.number(10), .null]),
                 "retryable": .bool(false),
             ]))
+            #expect(errorWithoutData.kind == .margin)
+            #expect(errorWithoutData.data == nil)
+            #expect(children[2] == .placed(orderID: "1914227164681625600"))
         }
     }
 
