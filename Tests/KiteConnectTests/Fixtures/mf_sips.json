@@ -1,0 +1,50 @@
+{
+  "data": [
+    {
+      "status": "ACTIVE",
+      "sip_reg_num": null,
+      "created": "2021-05-05 05:56:27",
+      "dividend_type": "idcw",
+      "instalment_amount": 500.0,
+      "fund": "Aditya Birla Sun Life Liquid Fund - Direct Plan",
+      "instalments": -1,
+      "next_instalment": "2021-05-12",
+      "transaction_type": "BUY",
+      "trigger_price": 0,
+      "step_up": {
+        "05-05": 10
+      },
+      "tradingsymbol": "INF209K01VD7",
+      "tag": "coiniossip",
+      "frequency": "weekly",
+      "last_instalment": "2021-05-05 05:56:27",
+      "pending_instalments": -1,
+      "instalment_day": 0,
+      "sip_type": "sip",
+      "completed_instalments": 0,
+      "sip_id": "892741486820670"
+    },
+    {
+      "status": "ACTIVE",
+      "sip_reg_num": "15158182",
+      "created": "2021-05-22 10:45:29",
+      "dividend_type": "idcw",
+      "instalment_amount": 1000.0,
+      "fund": "HDFC Balanced Advantage Fund - Direct Plan",
+      "instalments": 9999,
+      "next_instalment": "2021-07-12",
+      "transaction_type": "BUY",
+      "trigger_price": 0,
+      "step_up": {},
+      "tradingsymbol": "INF179K01VY8",
+      "tag": "coinandroidsip",
+      "frequency": "monthly",
+      "last_instalment": "2021-06-10 08:37:11",
+      "pending_instalments": 9998,
+      "instalment_day": 10,
+      "sip_type": "amc_sip",
+      "completed_instalments": 1,
+      "sip_id": "846479755969168"
+    }
+  ]
+}

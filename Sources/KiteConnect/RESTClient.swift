@@ -14,10 +14,15 @@ struct RESTClient: Sendable {
     }
 
     /// Fetches and decodes the data in a Kite success envelope.
-    func send<Value: Decodable>(_ endpoint: RESTRequest, as type: Value.Type = Value.self) async throws -> Value {
+    func send<Value: Decodable>(
+        _ endpoint: RESTRequest,
+        as type: Value.Type = Value.self,
+        allowsOmittedStatus: Bool = false
+    ) async throws -> Value {
         let (data, response) = try await sendRaw(endpoint)
         do {
-            return try JSONDecoder().decode(SuccessEnvelope<Value>.self, from: data).data
+            let envelope = try JSONDecoder().decode(SuccessEnvelope<Value>.self, from: data)
+            return try envelope.value(allowsOmittedStatus: allowsOmittedStatus)
         } catch {
             if let serviceError = Self.serviceError(in: data, statusCode: response.statusCode) {
                 throw KiteError.service(serviceError)
@@ -64,15 +69,29 @@ struct RESTClient: Sendable {
 }
 
 private struct SuccessEnvelope<Value: Decodable>: Decodable {
-    let data: Value
+    private let data: Value
+    private let hasStatus: Bool
 
     private enum Status: String, Decodable { case success }
     private enum CodingKeys: String, CodingKey { case status, data }
 
     init(from decoder: any Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        _ = try values.decode(Status.self, forKey: .status)
+        hasStatus = values.contains(.status)
+        if hasStatus {
+            _ = try values.decode(Status.self, forKey: .status)
+        }
         data = try values.decode(Value.self, forKey: .data)
+    }
+
+    func value(allowsOmittedStatus: Bool) throws -> Value {
+        guard hasStatus || allowsOmittedStatus else {
+            throw DecodingError.keyNotFound(CodingKeys.status, .init(
+                codingPath: [],
+                debugDescription: "The Kite response is missing its status."
+            ))
+        }
+        return data
     }
 }
 

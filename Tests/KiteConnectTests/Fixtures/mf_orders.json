@@ -1,0 +1,49 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "status": "REJECTED",
+      "purchase_type": "FRESH",
+      "folio": null,
+      "order_timestamp": "2021-06-30 08:33:07",
+      "average_price": 0.0,
+      "exchange_order_id": "254657127",
+      "last_price": 30.68,
+      "tradingsymbol": "INF179K01VY8",
+      "settlement_id": "2122061",
+      "transaction_type": "BUY",
+      "order_id": "271989e0-a64e-4cf3-b4e4-afb8f38dd203",
+      "amount": 1000.0,
+      "tag": null,
+      "placed_by": "ZV8062",
+      "exchange_timestamp": "2021-06-30",
+      "variety": "amc_sip",
+      "last_price_date": "2021-06-29",
+      "status_message": "AMC SIP: Insufficient balance.",
+      "fund": "HDFC Balanced Advantage Fund - Direct Plan",
+      "quantity": 0.0
+    },
+    {
+      "status": "REJECTED",
+      "purchase_type": "ADDITIONAL",
+      "folio": null,
+      "order_timestamp": "2021-06-30 01:30:02",
+      "average_price": 0.0,
+      "exchange_order_id": null,
+      "last_price": 52.798,
+      "tradingsymbol": "INF174K01LS2",
+      "settlement_id": null,
+      "transaction_type": "BUY",
+      "order_id": "ef7e696c-2fa6-400b-b180-eb25e6a04ccf",
+      "amount": 2000.0,
+      "tag": "coinandroidsip",
+      "placed_by": "ZV8062",
+      "exchange_timestamp": null,
+      "variety": "sip",
+      "last_price_date": "2021-06-29",
+      "status_message": "SIP: Insufficient balance.",
+      "fund": "Kotak Flexicap Fund - Direct Plan",
+      "quantity": 0.0
+    }
+  ]
+}
