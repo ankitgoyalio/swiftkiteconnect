@@ -54,9 +54,10 @@ final class TickerSocket: Sendable {
         }
     }
 
-    func receive() async throws -> URLSessionWebSocketTask.Message {
+    func receive(onReceive: @Sendable () -> Void) async throws -> URLSessionWebSocketTask.Message {
         try await withTaskCancellationHandler {
             do {
+                onReceive()
                 return try await task.receive()
             } catch {
                 throw await failure(after: error)

@@ -1,11 +1,17 @@
 import Foundation
 
 /// An authenticated WebSocket connection that delivers ticker events to one iterator.
-/// A connection loss observed during iteration starts automatic reconnection.
+/// A background producer buffers up to 64 events and pauses receives while the buffer is full.
+/// The first iterator advanced owns the stream. Cancelling a suspended next call closes the ticker.
 public actor KiteTicker: AsyncSequence {
     public static let defaultURL = URL(string: "wss://ws.kite.trade/")!
 
     private let url: URL
+    private let eventCapacity: Int
+    private let observeStream: (@Sendable (StreamObservation) -> Void)?
+    private var events: [Event] = [.connected]
+    private var receiveTask: Task<Void, Never>?
+    private var recoveryPending = false
     private var socket: TickerSocket?
     private var connectedAt = ContinuousClock.now
     private var retryDelay = Duration.seconds(1)
@@ -13,17 +19,32 @@ public actor KiteTicker: AsyncSequence {
     private var terminalFailure: KiteTickerError?
     private var isClosed = false
     private var iteratorID: UUID?
-    private var isReading = false
+    private var demandID: UUID?
+    private var waitingConsumer: CheckedContinuation<Event?, Error>?
     private var lastWrite: Task<Void, Error>?
     private var desired: [UInt32: Mode] = [:]
 
-    private init(socket: TickerSocket, url: URL) {
+    private init(
+        socket: TickerSocket,
+        url: URL,
+        eventCapacity: Int,
+        observeStream: (@Sendable (StreamObservation) -> Void)?
+    ) {
         self.socket = socket
         self.url = url
+        self.eventCapacity = eventCapacity
+        self.observeStream = observeStream
     }
 
     deinit {
+        receiveTask?.cancel()
         reconnection?.cancel()
+    }
+
+    enum StreamObservation: Equatable, Sendable {
+        case willReceive
+        case bufferFull
+        case waitingForEvent
     }
 
     /// Opens the WebSocket using the caller's Access Token and waits for the server's upgrade.
@@ -33,9 +54,24 @@ public actor KiteTicker: AsyncSequence {
         accessToken: String,
         url: URL = KiteTicker.defaultURL
     ) async throws -> KiteTicker {
+        try await connect(apiKey: apiKey, accessToken: accessToken, url: url, eventCapacity: 64)
+    }
+
+    static func connect(
+        apiKey: String,
+        accessToken: String,
+        url: URL,
+        eventCapacity: Int,
+        observeStream: (@Sendable (StreamObservation) -> Void)? = nil
+    ) async throws -> KiteTicker {
+        precondition(eventCapacity > 0)
         let authenticatedURL = try TickerSocket.authenticatedURL(apiKey: apiKey, accessToken: accessToken, url: url)
         let socket = try await TickerSocket.connect(to: authenticatedURL)
-        return KiteTicker(socket: socket, url: authenticatedURL)
+        let ticker = KiteTicker(
+            socket: socket, url: authenticatedURL, eventCapacity: eventCapacity, observeStream: observeStream
+        )
+        await ticker.resumeReceiving()
+        return ticker
     }
 
     /// Subscribes to the instruments and sets their mode. During reconnect, records the change for replay.
@@ -69,14 +105,9 @@ public actor KiteTicker: AsyncSequence {
         case ltp, quote, full
     }
 
-    /// Requests a normal WebSocket close and finishes the event sequence.
+    /// Requests a normal WebSocket close. The event sequence drains buffered events before finishing.
     public func close() {
-        guard !isClosed else { return }
-        isClosed = true
-        reconnection?.cancel()
-        socket?.close()
-        socket = nil
-        lastWrite = nil
+        finish()
     }
 
     public enum Event: Sendable, Equatable {
@@ -87,19 +118,13 @@ public actor KiteTicker: AsyncSequence {
         case recovered
         /// Ticks in the order they appeared in one binary message.
         case ticks([Tick])
+        /// An order status event from the authenticated WebSocket.
+        case orderUpdate(Order)
+        /// Kite sent an order update whose payload could not be decoded. The stream continues.
+        case invalidOrderUpdate
     }
 
-    public struct Tick: Sendable, Equatable {
-        public let instrumentToken: UInt32
-        public let lastPrice: Double
-
-        public init(instrumentToken: UInt32, lastPrice: Double) {
-            self.instrumentToken = instrumentToken
-            self.lastPrice = lastPrice
-        }
-    }
-
-    public struct AsyncIterator: AsyncIteratorProtocol {
+    public struct AsyncIterator: AsyncIteratorProtocol, Sendable {
         fileprivate let ticker: KiteTicker
         fileprivate let id = UUID()
 
@@ -114,7 +139,7 @@ public actor KiteTicker: AsyncSequence {
 
     private func checkWritable() throws {
         try Task.checkCancellation()
-        guard !isClosed, terminalFailure == nil else { throw KiteTickerError.closed }
+        guard !isClosed else { throw KiteTickerError.closed }
     }
 
     private func write(_ commands: [TickerCommand]) async throws {
@@ -141,60 +166,149 @@ public actor KiteTicker: AsyncSequence {
     }
 
     private func nextEvent(for id: UUID) async throws -> Event? {
-        guard !isClosed else { return nil }
         try Task.checkCancellation()
-        guard let iteratorID else {
-            self.iteratorID = id
-            return .connected
-        }
+        if iteratorID == nil { iteratorID = id }
         guard iteratorID == id else { throw KiteTickerError.iteratorAlreadyCreated }
-        guard !isReading else { throw KiteTickerError.concurrentNext }
-        isReading = true
-        defer { isReading = false }
+        guard demandID == nil else { throw KiteTickerError.concurrentNext }
 
-        if let reconnection {
-            await withTaskCancellationHandler {
-                await reconnection.value
-            } onCancel: {
-                reconnection.cancel()
+        if !events.isEmpty {
+            let event = events.removeFirst()
+            resumeReceiving()
+            return event
+        }
+        if isClosed { return try endOfSequence() }
+
+        let demand = UUID()
+        demandID = demand
+        defer { demandID = nil }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                waitingConsumer = continuation
+                observeStream?(.waitingForEvent)
             }
-            guard !isClosed else { return nil }
-            self.reconnection = nil
-            if Task.isCancelled {
-                close()
-                throw CancellationError()
-            }
-            if let terminalFailure {
-                close()
-                throw terminalFailure
-            }
-            return .recovered
+        } onCancel: {
+            Task { await self.cancelDemand(demand) }
+        }
+    }
+
+    private func cancelDemand(_ demand: UUID) {
+        guard demandID == demand, let consumer = waitingConsumer else { return }
+        waitingConsumer = nil
+        finish()
+        consumer.resume(throwing: CancellationError())
+    }
+
+    private func enqueue(_ event: Event) {
+        if let consumer = waitingConsumer {
+            waitingConsumer = nil
+            consumer.resume(returning: event)
+        } else {
+            events.append(event)
+        }
+    }
+
+    private func endOfSequence() throws -> Event? {
+        if let failure = terminalFailure {
+            terminalFailure = nil
+            throw failure
+        }
+        return nil
+    }
+
+    private func finish(throwing failure: KiteTickerError? = nil) {
+        guard !isClosed else { return }
+        isClosed = true
+        terminalFailure = failure
+        receiveTask?.cancel()
+        receiveTask = nil
+        reconnection?.cancel()
+        reconnection = nil
+        socket?.close()
+        socket = nil
+        lastWrite = nil
+        if let consumer = waitingConsumer {
+            waitingConsumer = nil
+            consumer.resume(with: Result { try endOfSequence() })
+        }
+    }
+
+    private func resumeReceiving() {
+        guard !isClosed, receiveTask == nil, let socket else { return }
+
+        // The producer parks here when the FIFO is full. Dequeuing an event
+        // restarts it, while close and subscription commands stay independent.
+        if recoveryPending, events.count < eventCapacity {
+            recoveryPending = false
+            enqueue(.recovered)
+        }
+        guard events.count < eventCapacity else {
+            observeStream?(.bufferFull)
+            return
         }
 
-        guard let socket else { return nil }
-        do {
-            while !isClosed {
-                let message = try await socket.receive()
-                guard !isClosed else { return nil }
+        receiveTask = Task { [weak self, observeStream] in
+            do {
                 try Task.checkCancellation()
-                if case .data(let data) = message {
-                    let ticks = TickerPackets.decode(data)
-                    if !ticks.isEmpty { return .ticks(ticks) }
+                let message = try await socket.receive {
+                    observeStream?(.willReceive)
                 }
+                await self?.received(message, from: socket)
+            } catch {
+                let underlying = error as NSError
+                let failure = error as? KiteTickerError ?? .transport(domain: underlying.domain, code: underlying.code)
+                await self?.receiveFailed(failure, from: socket)
             }
-            return nil
-        } catch {
-            guard !isClosed else { return nil }
-            if Task.isCancelled {
-                close()
-                throw CancellationError()
-            }
-            guard let failure = error as? KiteTickerError, !failure.isTerminalRejection else {
-                close()
-                throw error
-            }
+        }
+    }
+
+    private func received(_ message: URLSessionWebSocketTask.Message, from source: TickerSocket) {
+        guard socket === source else { return }
+        receiveTask = nil
+        if let event = Self.decode(message) { enqueue(event) }
+        resumeReceiving()
+    }
+
+    private func receiveFailed(_ failure: KiteTickerError, from source: TickerSocket) {
+        guard socket === source else { return }
+        receiveTask = nil
+        if failure.isTerminalRejection {
+            finish(throwing: failure)
+        } else {
+            enqueue(.interrupted(failure))
             startReconnection()
-            return .interrupted(failure)
+        }
+    }
+
+    private static func decode(_ message: URLSessionWebSocketTask.Message) -> Event? {
+        switch message {
+        case .data(let data):
+            let ticks = TickerPackets.decode(data)
+            return ticks.isEmpty ? nil : .ticks(ticks)
+        case .string(let text):
+            return (try? JSONDecoder().decode(TextEvent.self, from: Data(text.utf8)))?.event
+        @unknown default:
+            return nil
+        }
+    }
+
+    private struct TextEvent: Decodable {
+        let event: Event?
+
+        private enum CodingKeys: String, CodingKey {
+            case type, data
+        }
+
+        init(from decoder: any Decoder) throws {
+            let fields = try decoder.container(keyedBy: CodingKeys.self)
+            guard try fields.decode(String.self, forKey: .type) == "order" else {
+                event = nil
+                return
+            }
+            if let order = try? fields.decode(Order.self, forKey: .data) {
+                event = .orderUpdate(order)
+            } else {
+                event = .invalidOrderUpdate
+            }
         }
     }
 
@@ -213,7 +327,7 @@ public actor KiteTicker: AsyncSequence {
                     try await self.restoreSubscriptions(on: candidate, nextDelay: Self.increase(delay))
                     return
                 } catch let failure as KiteTickerError where failure.isTerminalRejection {
-                    await self?.recordTerminalFailure(failure)
+                    await self?.finish(throwing: failure)
                     return
                 } catch {
                     delay = Self.increase(delay)
@@ -224,10 +338,6 @@ public actor KiteTicker: AsyncSequence {
 
     private static func increase(_ delay: Duration) -> Duration {
         Swift.min(delay * 2, .seconds(30))
-    }
-
-    private func recordTerminalFailure(_ failure: KiteTickerError) {
-        terminalFailure = failure
     }
 
     private func restoreSubscriptions(on candidate: TickerSocket, nextDelay: Duration) async throws {
@@ -257,6 +367,9 @@ public actor KiteTicker: AsyncSequence {
             socket = candidate
             connectedAt = .now
             retryDelay = nextDelay
+            reconnection = nil
+            recoveryPending = true
+            resumeReceiving()
         } catch {
             candidate.close()
             throw error
